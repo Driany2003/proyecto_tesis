@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+models/*.joblib
+models/*.pkl
+models/*.h5
+!models/.gitkeep
+/tmp/

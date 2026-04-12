@@ -1,0 +1,311 @@
+@import "tailwindcss";
+
+/* Tailwind v4: usar clase .dark en html para alternar tema (no solo prefers-color-scheme) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --app-bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --muted: #64748b;
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --primary: #0ea5e9;
+  --primary-hover: #0284c7;
+  --primary-muted: #e0f2fe;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.07), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --sidebar-width: 16rem;
+  --transition-fast: 150ms;
+  --section-gap: 1rem;
+  --section-radius: 1rem;
+  /* Estilo raki: layout y card */
+  --background: #f1f5f9;
+  --card: var(--surface);
+  --foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --accent: #f1f5f9;
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+  --overlay: rgba(15, 23, 42, 0.45);
+  --input-disabled-bg: #f1f5f9;
+  --input-placeholder: #94a3b8;
+  --input-hover-border: #cbd5e1;
+}
+
+.dark {
+  --app-bg: #0f172a;
+  --background: #0f172a;
+  --surface: #1e293b;
+  --card: var(--surface);
+  --border: #334155;
+  --muted: #94a3b8;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --accent: #334155;
+  --primary-muted: #0c4a6e;
+  --overlay: rgba(0, 0, 0, 0.65);
+  --input-disabled-bg: #1e293b;
+  --input-placeholder: #94a3b8;
+  --input-hover-border: #475569;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html.dark {
+  background-color: var(--app-bg);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: var(--app-bg);
+  color: var(--text);
+  transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
+}
+
+/* Transiciones globales para interacción */
+button, a, input, select, textarea, [role="button"] {
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), box-shadow var(--transition-fast),
+    transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+/* Focus visible accesible */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 300ms var(--ease-out), border-color 300ms var(--ease-out);
+}
+
+.surface:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Card estilo raki (secciones) */
+.shadow-card {
+  box-shadow: var(--shadow-card);
+}
+.bg-card {
+  background: var(--card);
+}
+.text-foreground {
+  color: var(--foreground);
+}
+.text-muted-foreground {
+  color: var(--muted-foreground);
+}
+
+.bg-background {
+  background-color: var(--background);
+}
+.bg-accent {
+  background-color: var(--accent);
+}
+
+/* Modal: fondo y panel coherentes con tema claro/oscuro */
+.modal-overlay {
+  background-color: var(--overlay);
+}
+.modal-panel {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+}
+.modal-panel .modal-header {
+  background-color: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: background 150ms var(--ease-out), transform 150ms var(--ease-out);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Inputs: aspecto ordenado y profesional */
+.input-base {
+  width: 100%;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  transition: border-color 150ms var(--ease-out), box-shadow 150ms var(--ease-out);
+}
+
+.input-base:hover {
+  border-color: var(--input-hover-border);
+}
+
+.input-base:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-muted);
+  outline: none;
+}
+
+.input-base::placeholder {
+  color: var(--input-placeholder);
+}
+
+.input-base:disabled {
+  background: var(--input-disabled-bg);
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.85;
+}
+
+/* Select: flecha visible en ambos temas */
+select.input-base {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.25rem;
+}
+
+html.dark select.input-base {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+}
+
+textarea.input-base {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+/* Agrupación de campo: label + input para formularios ordenados */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.form-field .form-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.form-field .form-error {
+  font-size: 0.8125rem;
+  color: var(--error);
+}
+
+/* Animaciones de aparición suave */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInSoft {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes modalEnter {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* Entrada de página (contenido principal) */
+.page-enter {
+  opacity: 0;
+  animation: fadeIn 0.4s var(--ease-out) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s var(--ease-out) forwards;
+}
+
+/* Cada sección (cards, divisores) entra con transición suave */
+.section-enter {
+  opacity: 0;
+  animation: fadeInSoft 0.4s var(--ease-out) forwards;
+}
+
+/* Pequeño retraso escalonado para secciones consecutivas */
+.section-enter-delay-1 { animation-delay: 0.06s; }
+.section-enter-delay-2 { animation-delay: 0.12s; }
+.section-enter-delay-3 { animation-delay: 0.18s; }
+.section-enter-delay-4 { animation-delay: 0.24s; }
+.section-enter-delay-5 { animation-delay: 0.3s; }
+
+.sidebar-enter {
+  animation: slideIn 0.25s var(--ease-out) forwards;
+}
+
+/* Modal: aparición suave */
+.modal-panel-enter {
+  opacity: 0;
+  animation: modalEnter 0.25s var(--ease-out) forwards;
+}
+
+/* Scrollbar estilo raki */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
