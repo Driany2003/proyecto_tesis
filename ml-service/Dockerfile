@@ -7,6 +7,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Torch CPU antes que openai-whisper: si no, pip instala torch+CUDA (nvidia/cu*, varios GB) y falla el build sin espacio.
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    "torch>=2.0.0,<3"
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
