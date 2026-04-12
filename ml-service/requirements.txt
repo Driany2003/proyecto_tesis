@@ -12,11 +12,11 @@ noisereduce>=3.0.0
 # Acoustic analysis (Praat)
 praat-parselmouth>=0.4.5
 
-# Speech-to-text
+# Speech-to-text (torch: instalar CPU en Docker antes; ver Dockerfile)
 openai-whisper>=20240930
 
-# ML
-scikit-learn>=1.6.0
+# ML (alinear con la versión usada al entrenar el .joblib; evita InconsistentVersionWarning)
+scikit-learn>=1.6.1,<1.7.0
 xgboost>=2.1.0
 joblib>=1.4.0
 numpy>=1.26.0
