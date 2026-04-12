@@ -6,7 +6,7 @@ import parselmouth
 from parselmouth.praat import call
 
 from app.schemas.features import AcousticFeatures, AcousticResponse
-from app.services.audio_service import cleanup_audio, download_audio
+from app.services.audio_service import cleanup_audio, download_audio, prepare_audio_file
 
 logger = logging.getLogger("ml-service.acoustic")
 
@@ -64,9 +64,11 @@ def extract_acoustic_features(audio_path: Path) -> AcousticFeatures:
 async def analyze_acoustic(session_id: str, patient_id: str, audio_uri: str) -> AcousticResponse:
     """Pipeline completo: descarga → extrae features acústicas."""
     audio_path = await download_audio(audio_uri)
+    paths_to_delete: list[Path] = [audio_path]
 
     try:
-        features = extract_acoustic_features(audio_path)
+        work_path, paths_to_delete = prepare_audio_file(audio_path)
+        features = extract_acoustic_features(work_path)
 
         return AcousticResponse(
             session_id=session_id,
@@ -81,4 +83,5 @@ async def analyze_acoustic(session_id: str, patient_id: str, audio_uri: str) -> 
             nhr=features.nhr,
         )
     finally:
-        cleanup_audio(audio_path)
+        for p in paths_to_delete:
+            cleanup_audio(p)

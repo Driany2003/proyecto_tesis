@@ -8,7 +8,7 @@ import librosa
 from app.config import settings
 from app.core.exceptions import TranscriptionError
 from app.schemas.nlp import NLPMetrics, NLPResponse
-from app.services.audio_service import cleanup_audio, download_audio
+from app.services.audio_service import cleanup_audio, download_audio, prepare_audio_file
 
 logger = logging.getLogger("ml-service.nlp")
 
@@ -64,16 +64,18 @@ async def transcribe_and_analyze(
 ) -> NLPResponse:
     """Pipeline: descarga audio → Whisper → métricas NLP."""
     audio_path = await download_audio(audio_uri)
+    paths_to_delete: list[Path] = [audio_path]
 
     try:
+        work_path, paths_to_delete = prepare_audio_file(audio_path)
         model = get_whisper_model()
 
-        y, sr = librosa.load(str(audio_path), sr=16000)
+        y, sr = librosa.load(str(work_path), sr=16000)
         duration_sec = len(y) / sr
 
         try:
             result = model.transcribe(
-                str(audio_path),
+                str(work_path),
                 language="es",
                 fp16=False,
             )
@@ -105,4 +107,5 @@ async def transcribe_and_analyze(
             words_per_min=metrics.words_per_min,
         )
     finally:
-        cleanup_audio(audio_path)
+        for p in paths_to_delete:
+            cleanup_audio(p)

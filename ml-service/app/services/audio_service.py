@@ -1,5 +1,5 @@
 import logging
-import os
+import subprocess
 import uuid
 from pathlib import Path
 from urllib.parse import urlparse
@@ -15,6 +15,57 @@ from app.schemas.audio import AudioValidateResponse
 logger = logging.getLogger("ml-service.audio")
 
 SUPPORTED_FORMATS = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".webm"}
+
+# libsndfile no abre WebM/Opus; el resto de extensiones admitidas las lee soundfile/librosa si el build lo permite.
+_CONVERT_WITH_FFMPEG = frozenset({".webm"})
+
+
+def prepare_audio_file(local_path: Path) -> tuple[Path, list[Path]]:
+    """
+    Devuelve una ruta legible por soundfile/librosa/Praat y la lista de archivos a borrar
+    (original + WAV temporal si hubo conversión).
+    """
+    suffix = local_path.suffix.lower()
+    to_cleanup = [local_path]
+
+    if suffix not in _CONVERT_WITH_FFMPEG:
+        return local_path, to_cleanup
+
+    out = local_path.parent / f"{local_path.stem}_ffmpeg.wav"
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-nostdin",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        str(local_path),
+        "-acodec",
+        "pcm_s16le",
+        "-ar",
+        "48000",
+        "-ac",
+        "1",
+        str(out),
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+    except FileNotFoundError as exc:
+        raise AudioValidationError(
+            "ffmpeg no está instalado; hace falta para convertir WebM a WAV."
+        ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise AudioValidationError("ffmpeg superó el tiempo máximo de conversión") from exc
+    except subprocess.CalledProcessError as exc:
+        err = ""
+        if exc.stderr:
+            err = exc.stderr.decode(errors="replace")[:1200]
+        raise AudioValidationError(f"ffmpeg no pudo convertir el audio: {err or exc}") from exc
+
+    to_cleanup.append(out)
+    logger.info("Audio convertido con ffmpeg: %s -> %s", local_path.name, out.name)
+    return out, to_cleanup
 
 
 async def download_audio(audio_uri: str) -> Path:
@@ -56,6 +107,7 @@ def cleanup_audio(path: Path) -> None:
 async def validate_audio(session_id: str, audio_uri: str) -> AudioValidateResponse:
     """Valida formato, duración, sample rate y tamaño del audio."""
     audio_path = await download_audio(audio_uri)
+    paths_to_delete: list[Path] = [audio_path]
 
     try:
         ext = audio_path.suffix.lower()
@@ -68,7 +120,9 @@ async def validate_audio(session_id: str, audio_uri: str) -> AudioValidateRespon
                 f"Archivo demasiado grande: {file_size_mb:.1f}MB (máx {settings.audio_max_file_size_mb}MB)"
             )
 
-        info = sf.info(str(audio_path))
+        work_path, paths_to_delete = prepare_audio_file(audio_path)
+
+        info = sf.info(str(work_path))
         duration = info.duration
         sample_rate = info.samplerate
         channels = info.channels
@@ -97,7 +151,7 @@ async def validate_audio(session_id: str, audio_uri: str) -> AudioValidateRespon
             warnings.append(f"Sample rate bajo ({sample_rate}Hz); recomendado ≥16kHz para mejor precisión")
 
         # Verificar que librosa puede cargar el archivo (integridad)
-        y, sr = librosa.load(str(audio_path), sr=None, duration=2.0)
+        y, sr = librosa.load(str(work_path), sr=None, duration=2.0)
         if len(y) == 0:
             raise AudioValidationError("El archivo de audio está vacío o corrupto")
 
@@ -114,4 +168,5 @@ async def validate_audio(session_id: str, audio_uri: str) -> AudioValidateRespon
             warnings=warnings,
         )
     finally:
-        cleanup_audio(audio_path)
+        for p in paths_to_delete:
+            cleanup_audio(p)

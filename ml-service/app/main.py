@@ -1,8 +1,14 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.core.logging import setup_logging
@@ -35,6 +41,18 @@ app.add_middleware(
 )
 
 app.include_router(v1_router, prefix="/v1")
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Errores no previstos (Praat, Whisper, libs): 500 con detail legible para logs/n8n."""
+    if isinstance(exc, HTTPException):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, RequestValidationError):
+        return await request_validation_exception_handler(request, exc)
+    logger.exception("Error no controlado en %s %s", request.method, request.url.path)
+    msg = str(exc).strip() or exc.__class__.__name__
+    return JSONResponse(status_code=500, content={"detail": msg})
 
 
 @app.get("/health", tags=["infra"])

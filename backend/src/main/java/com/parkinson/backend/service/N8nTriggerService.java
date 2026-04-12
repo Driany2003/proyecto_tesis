@@ -1,5 +1,7 @@
 package com.parkinson.backend.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parkinson.backend.config.N8nProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +22,7 @@ public class N8nTriggerService {
 
     private final N8nProperties n8nProperties;
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
     @Async
     public void triggerParkinsonAnalyze(
@@ -44,9 +47,18 @@ public class N8nTriggerService {
         }
         body.put("clinical", clinical != null ? clinical : Map.of());
 
+        /* Serializar a String: si se envía Map, Spring puede poner Content-Type
+         * application/json;charset=UTF-8 y el Webhook de n8n deja body={}. */
+        final String jsonPayload;
+        try {
+            jsonPayload = objectMapper.writeValueAsString(body);
+        } catch (JsonProcessingException e) {
+            log.error("No se pudo serializar payload n8n para session_id={}", sessionId, e);
+            return;
+        }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+        HttpEntity<String> entity = new HttpEntity<>(jsonPayload, headers);
 
         try {
             log.info("Disparando n8n webhook: session_id={}", sessionId);
