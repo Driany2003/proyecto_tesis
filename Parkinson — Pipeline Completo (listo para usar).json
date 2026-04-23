@@ -1,0 +1,868 @@
+{
+  "name": "Parkinson — Pipeline Completo (listo para usar)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "# PARKINSON — PIPELINE LISTO\n\n## Antes de ejecutar\n1. Crear credencial Postgres en n8n:\n   - Host: `5.78.157.191`\n   - Port: `5432`\n   - Database: `tesis_parkinson`\n   - User: `giomar`\n   - Password: (ver application-dev.properties)\n   - Nombre de credencial: **Postgres Parkinson**\n2. Ejecutar el SQL de la nota amarilla para crear las tablas\n3. Levantar ml-service en puerto 8000\n4. (Opcional) Configurar ALERT_WEBHOOK_URL para alertas\n\n## Endpoints ml-service (FastAPI :8000)\n- `POST /v1/audio/validate`\n- `POST /v1/features/acoustic`\n- `POST /v1/nlp/transcribe-and-metrics`\n- `POST /v1/model/predict`\n\n## Docs interactiva\nhttp://5.78.157.191:8000/docs",
+        "height": 620,
+        "width": 520,
+        "color": 3
+      },
+      "id": "672acbff-0049-4610-aea2-ab63089fb6c9",
+      "name": "NOTA — LEER PRIMERO",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5776,
+        15056
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## SQL — Ejecutar en PostgreSQL antes de usar\n\nConectar a `tesis_parkinson` en `5.78.157.191:5432` y ejecutar:\n\n```sql\nCREATE TABLE IF NOT EXISTS analysis_sessions (\n  session_id UUID PRIMARY KEY,\n  patient_id UUID NOT NULL,\n  status TEXT NOT NULL DEFAULT 'received',\n  created_at TIMESTAMPTZ DEFAULT NOW(),\n  updated_at TIMESTAMPTZ\n);\n\nCREATE TABLE IF NOT EXISTS analysis_results (\n  id BIGSERIAL PRIMARY KEY,\n  session_id UUID NOT NULL REFERENCES analysis_sessions(session_id),\n  patient_id UUID NOT NULL,\n  p_parkinson DOUBLE PRECISION NOT NULL,\n  ci_low DOUBLE PRECISION,\n  ci_high DOUBLE PRECISION,\n  risk_band TEXT,\n  top_features JSONB,\n  created_at TIMESTAMPTZ DEFAULT NOW()\n);\n\nCREATE INDEX IF NOT EXISTS idx_results_session ON analysis_results(session_id);\nCREATE INDEX IF NOT EXISTS idx_results_patient ON analysis_results(patient_id);\nCREATE INDEX IF NOT EXISTS idx_sessions_patient ON analysis_sessions(patient_id);\n```",
+        "height": 624,
+        "width": 520,
+        "color": 5
+      },
+      "id": "e71e562c-75f1-4721-9d0b-04f2340f8d6b",
+      "name": "NOTA — SQL (ejecutar primero)",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5776,
+        15728
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Body webhook — POST /webhook/parkinson/analyze\n```json\n{\n  \"session_id\": \"550e8400-e29b-41d4-a716-446655440000\",\n  \"patient_id\": \"6ba7b810-9dad-11d1-80b4-00c04fd430c8\",\n  \"audio_uri\": \"https://storage.ejemplo.com/audio.wav\",\n  \"physician_id\": \"uuid-opcional\",\n  \"clinical\": {\n    \"age\": 72,\n    \"sex\": \"M\",\n    \"symptom_onset_months\": 18,\n    \"medication\": \"levodopa\"\n  }\n}\n```\n\n## Respuesta\n```json\n{\n  \"ok\": true,\n  \"session_id\": \"...\",\n  \"p_parkinson\": 0.82,\n  \"ci\": { \"low\": 0.71, \"high\": 0.93 },\n  \"risk_band\": \"high\",\n  \"charts\": {\n    \"acoustic_png\": \"https://quickchart.io/...\",\n    \"linguistic_png\": \"https://quickchart.io/...\",\n    \"risk_png\": \"https://quickchart.io/...\"\n  },\n  \"disclaimer\": \"Soporte clínico; no sustituye juicio médico.\"\n}\n```\n\n## Error 500 \"No Respond to Webhook\"\nLos nodos **Respond** ya están en el flujo. Ese error aparece si **un nodo falla antes** (HTTP ml-service caído, Postgres, etc.) y la ejecución no llega al Respond. Este JSON conecta la salida **error** (Continue using error output) de los HTTP/Postgres críticos a **Postgres — Marcar sesión fallida** → **Respond — Error** para que el webhook siempre cierre la petición HTTP.",
+        "height": 580,
+        "width": 480,
+        "color": 4
+      },
+      "id": "2d181533-119e-48fb-bc58-0e90f5307b7f",
+      "name": "NOTA — Contrato JSON",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        5808,
+        14432
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f9c8d6c9-54c5-4114-acd9-ec17ded2aa09",
+      "name": "Manual — Probar sin webhook",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        6384,
+        15680
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "session_id",
+              "value": "550e8400-e29b-41d4-a716-446655440001",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "patient_id",
+              "value": "6ba7b810-9dad-11d1-80b4-00c04fd430c9",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "audio_uri",
+              "value": "https://ejemplo.local/audio-prueba.wav",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "physician_id",
+              "value": "11111111-2222-3333-4444-555555555555",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "clinical",
+              "value": "={{ { \"age\": 70, \"sex\": \"F\", \"symptom_onset_months\": 24, \"medication\": \"levodopa\" } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "83d0d490-411c-4685-afb7-f45999836513",
+      "name": "Set — Datos MOCK (edítalos)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6624,
+        15680
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parkinson/analyze",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ae62ff85-752e-4e1a-aadf-ff31a4f24ddc",
+      "name": "Webhook — Inicio análisis",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        6624,
+        15456
+      ],
+      "webhookId": "parkinson-analyze-allinone"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nfunction asObject(v) {\n  if (v == null) return null;\n  if (typeof v === 'object' && !Array.isArray(v)) return v;\n  if (typeof v === 'string') {\n    const t = v.trim();\n    if (!t) return null;\n    try { return JSON.parse(t); } catch (e) {\n      throw new Error('Body no es JSON válido: ' + e.message);\n    }\n  }\n  return null;\n}\nconst nested = asObject(raw.body) ?? {};\nconst need = ['session_id', 'patient_id', 'audio_uri'];\nconst b = {};\nfor (const k of need) {\n  const v = nested[k] ?? raw[k];\n  if (v !== undefined && v !== null && v !== '') b[k] = v;\n}\nfor (const k of need) {\n  if (!b[k]) {\n    throw new Error(\n      'Falta ' + k + ': el Webhook recibió body vacío o no parseado. ' +\n      'Causa habitual: Content-Type distinto de application/json (p. ej. charset en el cliente).'\n    );\n  }\n}\nconst clinical =\n  nested.clinical && typeof nested.clinical === 'object'\n    ? nested.clinical\n    : raw.clinical && typeof raw.clinical === 'object'\n      ? raw.clinical\n      : {};\nconst physician = nested.physician_id ?? raw.physician_id;\nreturn [{\n  json: {\n    session_id: String(b.session_id),\n    patient_id: String(b.patient_id),\n    physician_id: physician ? String(physician) : null,\n    audio_uri: String(b.audio_uri),\n    clinical,\n    meta: { received_at: new Date().toISOString() },\n  },\n}];"
+      },
+      "id": "5ebf1b4b-1d29-4abc-9bd8-7e433be0250c",
+      "name": "Code — Validar payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6864,
+        15456
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO analysis_sessions (session_id, patient_id, status, created_at)\nVALUES ($1::uuid, $2::uuid, 'received', NOW())\nON CONFLICT (session_id) DO UPDATE SET status = 'received', updated_at = NOW();",
+        "options": {
+          "queryReplacement": "={{ [$json.session_id, $json.patient_id] }}"
+        }
+      },
+      "id": "85c72c88-c3ac-451d-be3e-44bbe4f5d96a",
+      "name": "Postgres — Registrar sesión",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        7104,
+        15456
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "swDDZa2GzGxzn1u9",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8000/v1/audio/validate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { session_id: $('Code — Validar payload').first().json.session_id, patient_id: $('Code — Validar payload').first().json.patient_id, audio_uri: $('Code — Validar payload').first().json.audio_uri } }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "9307ac7e-d278-4be2-8329-db36da322d75",
+      "name": "HTTP — Validar calidad audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7344,
+        15456
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8000/v1/features/acoustic",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Code — Validar payload').first().json }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "b150db4d-d24f-436a-ad67-ad97d64e5626",
+      "name": "HTTP — Análisis acústico (Praat)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7584,
+        15344
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8000/v1/nlp/transcribe-and-metrics",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $('Code — Validar payload').first().json }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "9e59ac34-ca6d-47b2-9653-7c5009e01a85",
+      "name": "HTTP — Whisper + NLP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        7584,
+        15584
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "41ab2a61-69d9-4c49-835c-2605fef0a198",
+      "name": "Merge — Acústico + NLP",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        7824,
+        15456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const root = $('Code — Validar payload').first().json;\nconst items = $input.all();\nlet acoustic = {};\nlet nlp = {};\nfor (const it of items) {\n  const j = it.json;\n  if (j.f0_mean != null || j.jitter != null || j.opensmile) acoustic = j;\n  if (j.transcript != null || j.ttr != null || j.whisper) nlp = j;\n}\nif (!acoustic || Object.keys(acoustic).length === 0) acoustic = items[0]?.json ?? {};\nif (!nlp || Object.keys(nlp).length === 0) nlp = items[1]?.json ?? {};\nreturn [{\n  json: {\n    session_id: root.session_id,\n    patient_id: root.patient_id,\n    clinical: root.clinical,\n    acoustic,\n    nlp\n  }\n}];"
+      },
+      "id": "3abae8f1-4210-4b54-a4f8-6bdbdd41b800",
+      "name": "Code — Empaquetar fusión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8064,
+        15456
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8000/v1/model/predict",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "e61b2d45-25a7-4cc4-99d5-2210297c412e",
+      "name": "HTTP — Modelo probabilístico",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8304,
+        15456
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO analysis_results (session_id, patient_id, p_parkinson, ci_low, ci_high, risk_band, top_features, created_at)\nVALUES (\n  $1::uuid,\n  $2::uuid,\n  $3,\n  $4,\n  $5,\n  $6,\n  $7::jsonb,\n  NOW()\n);\n\nUPDATE analysis_sessions SET status = 'completed', updated_at = NOW()\nWHERE session_id = $8::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$json.session_id, $json.patient_id, $json.p_parkinson, $json.ci_low, $json.ci_high, $json.risk_band, JSON.stringify($json.top_features ?? []), $json.session_id] }}"
+        }
+      },
+      "id": "08ea6ed7-e650-4a65-88c1-b9b2556895bc",
+      "name": "Postgres — Guardar predicción",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        8544,
+        15456
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "swDDZa2GzGxzn1u9",
+          "name": "Postgres account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tomar datos del modelo probabilístico (Postgres no propaga campos al hacer INSERT/UPDATE)\nconst modelOut = $('HTTP — Modelo probabilístico').first().json;\nconst root = $('Code — Validar payload').first().json;\nconst p = { ...modelOut, session_id: modelOut.session_id ?? root.session_id, patient_id: modelOut.patient_id ?? root.patient_id };\n\nconst f0 = p.acoustic?.f0_mean ?? p.f0_mean ?? 0;\nconst jit = (p.acoustic?.jitter ?? p.jitter ?? 0) * 100;\nconst shim = (p.acoustic?.shimmer ?? p.shimmer ?? 0) * 100;\nconst ttr = p.nlp?.ttr ?? p.ttr ?? 0;\nconst wpm = p.nlp?.words_per_min ?? p.words_per_min ?? 0;\nconst chartAcoustic = {\n  type: 'bar',\n  data: {\n    labels: ['F0 (Hz)', 'Jitter %', 'Shimmer %'],\n    datasets: [{\n      label: 'Acústico',\n      data: [Math.round(f0 * 10) / 10, Math.round(jit * 100) / 100, Math.round(shim * 100) / 100],\n      backgroundColor: ['#3b82f6', '#ef4444', '#f59e0b']\n    }]\n  },\n  options: { plugins: { title: { display: true, text: 'Resumen Acústico' } } }\n};\nconst chartLing = {\n  type: 'bar',\n  data: {\n    labels: ['TTR (diversidad)', 'Palabras/min'],\n    datasets: [{\n      label: 'Lingüístico',\n      data: [Math.round(ttr * 1000) / 1000, Math.round(wpm * 10) / 10],\n      backgroundColor: ['#8b5cf6', '#10b981']\n    }]\n  },\n  options: { plugins: { title: { display: true, text: 'Métricas NLP' } } }\n};\nconst prob = (p.p_parkinson ?? p.probability ?? 0);\nconst pct = Math.round(prob * 1000) / 10;\nconst chartRisk = {\n  type: 'doughnut',\n  data: {\n    labels: ['Riesgo Parkinson', 'Resto'],\n    datasets: [{\n      data: [pct, Math.max(0, 100 - pct)],\n      backgroundColor: [pct >= 70 ? '#ef4444' : pct >= 50 ? '#f59e0b' : '#10b981', '#e5e7eb']\n    }]\n  },\n  options: { plugins: { title: { display: true, text: `Probabilidad estimada: ${pct}%` } } }\n};\nconst enc = (c) => encodeURIComponent(JSON.stringify(c));\nreturn [{\n  json: {\n    ...p,\n    charts: {\n      acoustic_png: `https://quickchart.io/chart?c=${enc(chartAcoustic)}&w=500&h=300&format=png`,\n      linguistic_png: `https://quickchart.io/chart?c=${enc(chartLing)}&w=500&h=300&format=png`,\n      risk_png: `https://quickchart.io/chart?c=${enc(chartRisk)}&w=400&h=400&format=png`\n    }\n  }\n}];"
+      },
+      "id": "275b39b1-a914-4ecd-86fb-7d9fb2895cc7",
+      "name": "Code — Generar gráficos (QuickChart)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8784,
+        15456
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8081/api/webhooks/recording-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "parkinson-n8n-webhook-2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { recordingId: $json.session_id, patientId: $json.patient_id, status: 'completed', pParkinson: $json.p_parkinson, riskBand: $json.risk_band, charts: $json.charts } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ab1c5102-4cfa-45f7-bb29-27d86bbe68ba",
+      "name": "HTTP — Backend estado grabación (OK)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9024,
+        15216
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "risk-high",
+              "leftValue": "={{ $json.p_parkinson ?? $json.probability ?? 0 }}",
+              "rightValue": 0.7,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a5b3b398-13e5-4d88-bcd1-0d7ab81c019f",
+      "name": "IF — Riesgo alto (≥ 0.7)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        9024,
+        15456
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://TU-WEBHOOK-DE-ALERTAS.example.com",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { type: 'parkinson_high_risk', session_id: $json.session_id, patient_id: $json.patient_id, probability: $json.p_parkinson, risk_band: $json.risk_band, ci: { low: $json.ci_low, high: $json.ci_high }, charts: $json.charts, timestamp: new Date().toISOString() } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "dc926157-d6c6-4a1e-bb2f-3f49d21ca748",
+      "name": "HTTP — Alerta riesgo alto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        9296,
+        15312
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, session_id: $json.session_id, patient_id: $json.patient_id, p_parkinson: $json.p_parkinson, ci: { low: $json.ci_low, high: $json.ci_high }, risk_band: $json.risk_band, top_features: $json.top_features, charts: $json.charts, disclaimer: 'Herramienta de soporte clínico. No sustituye el juicio médico profesional.' }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "75199f6b-7038-4d30-8013-2d20f76f2c66",
+      "name": "Respond — JSON final",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        9584,
+        15472
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "out",
+              "name": "resultado",
+              "value": "={{ $json }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4c59a0c0-3568-4ceb-b21d-a63b33cae079",
+      "name": "Set — Salida prueba MANUAL",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        9504,
+        15728
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function fastApiDetail(text) {\n  if (text == null || typeof text !== 'string') return null;\n  const i = text.indexOf('{');\n  if (i === -1) return null;\n  try {\n    const o = JSON.parse(text.slice(i));\n    if (o && o.detail != null) {\n      return typeof o.detail === 'string' ? o.detail : JSON.stringify(o.detail);\n    }\n  } catch (err) { /* ignore */ }\n  return null;\n}\n\nfunction isMisleadingSuccessPayload(text) {\n  if (text == null || typeof text !== 'string') return false;\n  const i = text.indexOf('{');\n  if (i === -1) return false;\n  try {\n    const o = JSON.parse(text.slice(i));\n    if (o.opensmile === true && o.features) return true;\n    if (o.whisper === true && (o.transcript != null || o.metrics)) return true;\n    if (typeof o.p_parkinson === 'number') return true;\n    if (o.valid === true && o.duration_sec != null) return true;\n  } catch (e) { /* ignore */ }\n  return false;\n}\n\nfunction pickFromNodeApiError(err) {\n  if (!err || typeof err !== 'object') return null;\n  const msg = err.message ?? err.description ?? err.reason;\n  if (!msg) return null;\n  return {\n    message: String(msg),\n    httpStatus: err.statusCode ?? err.httpStatus ?? err.status ?? null,\n    name: err.name ?? err.type ?? null,\n  };\n}\n\nfunction pickAxiosLike(item) {\n  if (!item || typeof item !== 'object') return null;\n  const e = item.error;\n  if (e && typeof e === 'object') {\n    const msg = e.message ?? e.description ?? e.reason;\n    if (msg) {\n      return {\n        message: String(msg),\n        httpStatus: e.statusCode ?? e.status ?? null,\n        name: e.name ?? null,\n      };\n    }\n  }\n  if (item.name === 'AxiosError' || item.code === 'ERR_BAD_RESPONSE') {\n    const msg = item.message;\n    if (msg) {\n      return {\n        message: String(msg),\n        httpStatus: item.statusCode ?? item.status ?? null,\n        name: item.name ?? null,\n      };\n    }\n  }\n  return null;\n}\n\nfunction probeWorkflowErrors() {\n  const names = [\n    'HTTP — Validar calidad audio',\n    'HTTP — Análisis acústico (Praat)',\n    'HTTP — Whisper + NLP',\n    'HTTP — Modelo probabilístico',\n    'Postgres — Registrar sesión',\n    'Postgres — Guardar predicción',\n  ];\n  for (const name of names) {\n    try {\n      const ref = $(name);\n      if (!ref || typeof ref.all !== 'function') continue;\n      const list = typeof ref.all === 'function' ? ref.all() : [];\n      const also = [];\n      if (typeof ref.first === 'function') try { also.push(ref.first()); } catch (e2) { /* ignore */ }\n      if (typeof ref.last === 'function') try { also.push(ref.last()); } catch (e3) { /* ignore */ }\n      for (const it of [...list, ...also]) {\n        if (!it) continue;\n        const p = pickFromNodeApiError(it.error);\n        if (p) return p;\n        if (it.json) {\n          const p2 = pickAxiosLike(it.json);\n          if (p2) return p2;\n        }\n      }\n    } catch (e) {\n      continue;\n    }\n  }\n  return null;\n}\n\nconst root = $('Code — Validar payload').first().json;\nconst first = $input.first();\nconst hasExecShape = first && typeof first === 'object' && ('json' in first || 'error' in first);\nconst item = hasExecShape\n  ? (first.json !== undefined && first.json !== null ? first.json : {})\n  : (first || {});\nconst outerErr = hasExecShape ? first.error : undefined;\nlet picked = pickFromNodeApiError(outerErr);\nif (!picked && typeof $input.all === 'function') {\n  for (const it of $input.all()) {\n    const ex = it && typeof it === 'object' && ('json' in it || 'error' in it);\n    const p = pickFromNodeApiError(ex ? it.error : undefined);\n    if (p) {\n      picked = p;\n      break;\n    }\n  }\n}\nif (!picked) picked = probeWorkflowErrors();\nif (!picked) picked = pickAxiosLike(item);\nif (!picked && item.json && typeof item.json === 'object') {\n  picked = pickAxiosLike({ ...item, ...item.json });\n}\nlet message = picked ? picked.message : null;\nlet httpStatus = picked ? picked.httpStatus : null;\nlet name = picked ? picked.name : null;\n\nif (message == null && typeof item.message === 'string' && (item.name || item.stack)) {\n  message = item.message;\n  httpStatus = httpStatus ?? item.statusCode ?? null;\n  name = name ?? item.name ?? null;\n}\n\nif (message == null) {\n  const slim = { ...item };\n  delete slim.success;\n  delete slim.pairedItem;\n  delete slim.item;\n  const keys = Object.keys(slim).filter((k) => slim[k] !== undefined);\n  if (keys.length === 0) {\n    message = 'No se pudo leer el error del nodo (Code no recibe item.error en $input). Keys en json recibido: ' + JSON.stringify(Object.keys(item));\n  } else {\n    message = JSON.stringify(slim);\n  }\n}\n\nconst detail = fastApiDetail(message);\nif (detail) {\n  message = detail;\n}\n\nif (isMisleadingSuccessPayload(message)) {\n  message =\n    'Fallo en un paso posterior (Merge, Whisper, predict o Postgres). En n8n abra la ejecución y el nodo en rojo; el texto largo anterior era una respuesta HTTP OK mal interpretada como error.';\n}\n\nreturn [{\n  json: {\n    session_id: root.session_id,\n    patient_id: root.patient_id,\n    error: { message, httpStatus, name },\n  },\n}];"
+      },
+      "id": "ed8dbe24-3487-4d54-9415-d89d78eb1d2f",
+      "name": "Code — Normalizar error pipeline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8064,
+        15840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE analysis_sessions SET status = 'failed', updated_at = NOW()\nWHERE session_id = $1::uuid;",
+        "options": {
+          "queryReplacement": "={{ [$json.session_id] }}"
+        }
+      },
+      "id": "2a4f692d-e977-413e-8aeb-9132ba6ad2e1",
+      "name": "Postgres — Marcar sesión fallida",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        8304,
+        15840
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "swDDZa2GzGxzn1u9",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8081/api/webhooks/recording-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "parkinson-n8n-webhook-2026"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { recordingId: $('Code — Normalizar error pipeline').first().json.session_id, patientId: $('Code — Normalizar error pipeline').first().json.patient_id, status: 'failed', errorMessage: String($('Code — Normalizar error pipeline').first().json.error.message || '').substring(0, 1900) } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "d9e50665-e762-41d9-b4ec-bb1b9c2e47fe",
+      "name": "HTTP — Backend estado grabación (fallo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        8432,
+        15840
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, session_id: $('Code — Normalizar error pipeline').first().json.session_id, patient_id: $('Code — Normalizar error pipeline').first().json.patient_id, error: $('Code — Normalizar error pipeline').first().json.error, timestamp: new Date().toISOString() }) }}",
+        "options": {
+          "responseCode": 500
+        }
+      },
+      "id": "dfc68a64-5de3-4351-8162-ba29b84cacd6",
+      "name": "Respond — Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        8544,
+        15840
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual — Probar sin webhook": {
+      "main": [
+        [
+          {
+            "node": "Set — Datos MOCK (edítalos)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set — Datos MOCK (edítalos)": {
+      "main": [
+        [
+          {
+            "node": "Code — Validar payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook — Inicio análisis": {
+      "main": [
+        [
+          {
+            "node": "Code — Validar payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Validar payload": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Registrar sesión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Registrar sesión": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Validar calidad audio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code — Normalizar error pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Validar calidad audio": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Análisis acústico (Praat)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP — Whisper + NLP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code — Normalizar error pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Análisis acústico (Praat)": {
+      "main": [
+        [
+          {
+            "node": "Merge — Acústico + NLP",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code — Normalizar error pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Whisper + NLP": {
+      "main": [
+        [
+          {
+            "node": "Merge — Acústico + NLP",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Code — Normalizar error pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge — Acústico + NLP": {
+      "main": [
+        [
+          {
+            "node": "Code — Empaquetar fusión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Empaquetar fusión": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Modelo probabilístico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Modelo probabilístico": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Guardar predicción",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code — Normalizar error pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Guardar predicción": {
+      "main": [
+        [
+          {
+            "node": "Code — Generar gráficos (QuickChart)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code — Normalizar error pipeline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Generar gráficos (QuickChart)": {
+      "main": [
+        [
+          {
+            "node": "IF — Riesgo alto (≥ 0.7)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "HTTP — Backend estado grabación (OK)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF — Riesgo alto (≥ 0.7)": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Alerta riesgo alto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond — JSON final",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set — Salida prueba MANUAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Alerta riesgo alto": {
+      "main": [
+        [
+          {
+            "node": "Respond — JSON final",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set — Salida prueba MANUAL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code — Normalizar error pipeline": {
+      "main": [
+        [
+          {
+            "node": "Postgres — Marcar sesión fallida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres — Marcar sesión fallida": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Backend estado grabación (fallo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Backend estado grabación (fallo)": {
+      "main": [
+        [
+          {
+            "node": "Respond — Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "1a753ad2-f9ce-46c3-b9de-85d8943118cd",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e400ac5c7cf3a2a5acd3280f3d85c3afb3887a7368b5d8fcd79917365fbc65d8"
+  },
+  "id": "p5CojL6bzTW51hgb",
+  "tags": [
+    {
+      "updatedAt": "2026-04-10T00:46:22.306Z",
+      "createdAt": "2026-04-10T00:46:22.306Z",
+      "id": "eiXWRv3Tqp0Jb6ly",
+      "name": "TodoEnUno"
+    },
+    {
+      "updatedAt": "2026-04-10T00:46:22.285Z",
+      "createdAt": "2026-04-10T00:46:22.285Z",
+      "id": "gh9hzBPDY4M8sDp8",
+      "name": "Parkinson"
+    },
+    {
+      "updatedAt": "2026-04-10T00:46:22.298Z",
+      "createdAt": "2026-04-10T00:46:22.298Z",
+      "id": "wFNT1heNGhMjmUOa",
+      "name": "Tesis"
+    }
+  ]
+}
