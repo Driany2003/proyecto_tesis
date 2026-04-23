@@ -16,7 +16,6 @@ import java.util.UUID;
 public class Recording {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
