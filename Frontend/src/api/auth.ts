@@ -9,9 +9,12 @@ function mapRole(role: string): Role {
 }
 
 export async function login(credentials: LoginCredentials): Promise<AuthUser> {
-  const response = await apiClient.post<{ message: string }>('/auth/login', credentials)
+  const response = await apiClient.post<{ message: string; token?: string }>('/auth/login', credentials)
+  // En CORS, el header Authorization a veces no es visible; el backend devuelve el token en el cuerpo
+  const fromBody = (response.data?.token ?? '').trim()
   const authHeader = response.headers?.authorization ?? response.headers?.Authorization ?? ''
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+  const fromHeader = authHeader.replace(/^Bearer\s+/i, '').trim()
+  const token = fromBody || fromHeader
   if (!token) throw new Error('No se recibió token')
   localStorage.setItem('token', token)
   const me = await getMe()

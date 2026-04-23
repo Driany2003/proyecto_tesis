@@ -83,9 +83,11 @@ export function LoginPage() {
       setSuccess('Login exitoso')
       setTimeout(() => navigate(from, { replace: true }), 600)
     } catch (e: unknown) {
+      const err = e as { message?: string; response?: { data?: { error?: string; message?: string } } }
       setError(
-        (e as { response?: { data?: { error?: string; message?: string } } })?.response?.data?.error ||
-          (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        err.response?.data?.error ||
+          err.response?.data?.message ||
+          (err.message && err.message !== 'Network Error' ? err.message : null) ||
           'Credenciales incorrectas'
       )
     }
