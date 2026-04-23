@@ -15,6 +15,9 @@ dist-ssr
 # Backend: variables de entorno locales (SPRING_DATASOURCE_PASSWORD, APP_MINIO_*, etc.)
 backend/.env
 
+# Maven build output (no debe subirse, se regenera con mvn package)
+backend/target/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
