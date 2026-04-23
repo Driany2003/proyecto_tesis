@@ -51,6 +51,7 @@ public class AuthServiceImpl implements AuthService {
         return LoginResponseDto.builder()
                 .message("Login exitoso")
                 .token(token)
+                .user(toDto(user, authority.getUsername()))
                 .build();
     }
 

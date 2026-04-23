@@ -28,42 +28,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: false,
   })
 
-  const refreshFromServer = useCallback(async (token: string, storedUser: User | null) => {
-    try {
-      const authUser = await authApi.getMe()
-      if (!authUser) {
-        localStorage.removeItem(STORAGE_TOKEN)
-        localStorage.removeItem(STORAGE_USER)
-        setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
-        return
-      }
-      const fresh: User = {
-        id: authUser.id,
-        name: authUser.name,
-        email: authUser.email,
-        role: authUser.role,
-        active: authUser.active,
-      }
-      const differs =
-        !storedUser ||
-        storedUser.id !== fresh.id ||
-        storedUser.role !== fresh.role ||
-        storedUser.active !== fresh.active ||
-        storedUser.email !== fresh.email ||
-        storedUser.name !== fresh.name
-      if (differs) {
-        localStorage.setItem(STORAGE_USER, JSON.stringify(fresh))
-        setState({ user: fresh, token, isLoading: false, isAuthenticated: true })
-      } else {
-        setState({ user: storedUser, token, isLoading: false, isAuthenticated: true })
-      }
-    } catch {
-      localStorage.removeItem(STORAGE_TOKEN)
-      localStorage.removeItem(STORAGE_USER)
-      setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
-    }
-  }, [])
-
   const loadUser = useCallback(async () => {
     const token = localStorage.getItem(STORAGE_TOKEN)
     if (!token) {
@@ -71,18 +35,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const stored = localStorage.getItem(STORAGE_USER)
-    let storedUser: User | null = null
     if (stored) {
       try {
-        storedUser = JSON.parse(stored) as User
+        const storedUser = JSON.parse(stored) as User
         setState({ user: storedUser, token, isLoading: false, isAuthenticated: true })
+        return
       } catch {
         localStorage.removeItem(STORAGE_USER)
-        storedUser = null
       }
     }
-    await refreshFromServer(token, storedUser)
-  }, [refreshFromServer])
+    try {
+      const me = await authApi.getMe()
+      if (!me) {
+        localStorage.removeItem(STORAGE_TOKEN)
+        localStorage.removeItem(STORAGE_USER)
+        setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
+        return
+      }
+      const fresh: User = {
+        id: me.id,
+        name: me.name,
+        email: me.email,
+        role: me.role,
+        active: me.active,
+      }
+      localStorage.setItem(STORAGE_USER, JSON.stringify(fresh))
+      setState({ user: fresh, token, isLoading: false, isAuthenticated: true })
+    } catch {
+      localStorage.removeItem(STORAGE_TOKEN)
+      localStorage.removeItem(STORAGE_USER)
+      setState({ user: null, token: null, isLoading: false, isAuthenticated: false })
+    }
+  }, [])
 
   useEffect(() => {
     loadUser()

@@ -24,27 +24,21 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponseDto> login(@Valid @RequestBody LoginRequestDto request, HttpServletRequest httpRequest) {
-        String clientIp = getClientIp(httpRequest);
-        log.info("Intento de login para email={} ip={}", request.getEmail(), clientIp);
+        log.info("Login email={} ip={}", request.getEmail(), getClientIp(httpRequest));
         var dto = authService.login(request);
-        log.info("Login exitoso para email={} ip={}", request.getEmail(), clientIp);
-        // El token también va en el cuerpo: en CORS, el navegador no expone el header Authorization al JS
         return ResponseEntity.ok()
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + dto.getToken())
                 .body(dto);
     }
 
     @GetMapping("/me")
-    public ResponseEntity<UserDto> me(@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpRequest) {
+    public ResponseEntity<UserDto> me(@AuthenticationPrincipal UserDetails userDetails) {
         String email = userDetails != null ? userDetails.getUsername() : null;
-        log.info("Consulta de perfil /auth/me para email={} ip={}", email, getClientIp(httpRequest));
         return ResponseEntity.of(authService.getCurrentUser(email));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@AuthenticationPrincipal UserDetails userDetails, HttpServletRequest httpRequest) {
-        String email = userDetails != null ? userDetails.getUsername() : null;
-        log.info("Logout para email={} ip={}", email, getClientIp(httpRequest));
+    public ResponseEntity<Void> logout() {
         return ResponseEntity.ok().build();
     }
 
