@@ -1,7 +1,9 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/auth/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
 import { IconBell } from '@/components/icons/SidebarIcons'
+import { getPatient } from '@/api/patients'
 
 const breadcrumbLabels: Record<string, string> = {
   '': 'Inicio',
@@ -16,9 +18,19 @@ const breadcrumbLabels: Record<string, string> = {
   record: 'Grabar voz',
 }
 
+const UUID_RE = /^[a-f0-9-]{36}$/i
+
 function Breadcrumbs() {
   const location = useLocation()
+  const params = useParams()
   const parts = location.pathname.split('/').filter(Boolean)
+
+  const patientIdFromRoute = params.id
+  const { data: patientForCrumb } = useQuery({
+    queryKey: ['patient', patientIdFromRoute],
+    queryFn: () => getPatient(patientIdFromRoute!),
+    enabled: !!patientIdFromRoute && UUID_RE.test(patientIdFromRoute),
+  })
 
   if (parts.length === 0) {
     return (
@@ -29,10 +41,13 @@ function Breadcrumbs() {
   }
 
   const getLabel = (part: string, index: number): string => {
-    if (parts[index - 1] === 'patients' && part !== 'patients' && !/^[a-f0-9-]+$/i.test(part)) {
+    if (parts[index - 1] === 'patients' && part !== 'patients' && !UUID_RE.test(part)) {
       return breadcrumbLabels[part] ?? part
     }
-    if (parts[index - 1] === 'patients' && /^[a-f0-9-]+$/i.test(part)) return 'Paciente'
+    if (parts[index - 1] === 'patients' && UUID_RE.test(part)) {
+      const name = patientForCrumb?.fullName?.trim()
+      return name || '…'
+    }
     return breadcrumbLabels[part] ?? part
   }
 
@@ -55,13 +70,17 @@ function Breadcrumbs() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
           {i === parts.length - 1 ? (
-            <span className="font-medium text-slate-900 dark:text-slate-100">
+            <span
+              className="max-w-[min(100%,14rem)] truncate font-medium text-slate-900 dark:text-slate-100"
+              title={getLabel(part, i)}
+            >
               {getLabel(part, i)}
             </span>
           ) : (
             <Link
               to={`/${parts.slice(0, i + 1).join('/')}`}
-              className="text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              className="max-w-[min(100%,14rem)] truncate text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              title={getLabel(part, i)}
             >
               {getLabel(part, i)}
             </Link>
@@ -78,7 +97,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-card px-4 dark:border-slate-700">
-      {/* Menú móvil */}
       <button
         type="button"
         onClick={onMenuClick}
@@ -90,12 +108,10 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </svg>
       </button>
 
-      {/* Breadcrumbs (estilo raki) */}
       <Breadcrumbs />
 
       <div className="flex-1" />
 
-      {/* Tema */}
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -129,7 +145,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </button>
       </div>
 
-      {/* Notificaciones */}
       <button
         type="button"
         className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-accent hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"

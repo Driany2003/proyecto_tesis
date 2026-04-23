@@ -93,7 +93,6 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-svh bg-slate-100 dark:bg-slate-950">
-      {/* Panel izquierdo - Imagen hero (estilo raki) */}
       <div className="relative hidden w-full overflow-hidden bg-slate-800 lg:flex lg:w-[42%]">
         <img
           src={LOGIN_IMAGE_URL}
@@ -116,9 +115,7 @@ export function LoginPage() {
         </div>
       </div>
 
-      {/* Panel derecho - Formulario */}
       <div className="relative flex flex-1 flex-col items-center justify-center bg-white p-8 dark:bg-slate-900 sm:p-12 lg:p-16">
-        {/* Tema: dos botones Sol / Luna (estilo raki) */}
         <div className="absolute right-6 top-6 flex items-center gap-1 sm:right-8 sm:top-8">
           <button
             type="button"

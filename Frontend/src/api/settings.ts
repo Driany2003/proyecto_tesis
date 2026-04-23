@@ -2,10 +2,10 @@ import { apiClient } from './client'
 import type { RiskThresholds, ThresholdHistoryEntry } from '@/types/settings'
 
 const DEFAULT_THRESHOLDS: RiskThresholds = {
-  lowMax: 39,
-  moderateMin: 40,
-  moderateMax: 69,
-  highMin: 70,
+  lowMax: 30,
+  moderateMin: 30,
+  moderateMax: 60,
+  highMin: 60,
   alertThreshold: 70,
   criticalThreshold: 85,
 }

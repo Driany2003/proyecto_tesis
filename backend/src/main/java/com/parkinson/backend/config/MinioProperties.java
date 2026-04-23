@@ -12,6 +12,5 @@ public class MinioProperties {
     private String accessKey;
     private String secretKey;
     private String bucket = "parkinsonvoicesdata";
-    /** Duración de URLs prefirmadas (GET) en minutos */
     private int presignGetMinutes = 120;
 }

@@ -348,6 +348,40 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8080/api/webhooks/recording-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "CHANGE_ME_SAME_AS_APP_WEBHOOK_RECORDING_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { recordingId: $json.session_id, patientId: $json.patient_id, status: 'completed', pParkinson: $json.p_parkinson, riskBand: $json.risk_band, charts: $json.charts } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "a1b2c3d4-1122-3344-5566-77889900aabb",
+      "name": "HTTP — Backend estado grabación (OK)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4990,
+        -272
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
@@ -441,7 +475,7 @@
     },
     {
       "parameters": {
-        "jsCode": "function fastApiDetail(text) {\n  if (text == null || typeof text !== 'string') return null;\n  const i = text.indexOf('{');\n  if (i === -1) return null;\n  try {\n    const o = JSON.parse(text.slice(i));\n    if (o && o.detail != null) {\n      return typeof o.detail === 'string' ? o.detail : JSON.stringify(o.detail);\n    }\n  } catch (err) { /* ignore */ }\n  return null;\n}\n\nfunction pickFromNodeApiError(err) {\n  if (!err || typeof err !== 'object') return null;\n  const msg = err.message ?? err.description ?? err.reason;\n  if (!msg) return null;\n  return {\n    message: String(msg),\n    httpStatus: err.statusCode ?? err.httpStatus ?? err.status ?? null,\n    name: err.name ?? err.type ?? null,\n  };\n}\n\nfunction pickAxiosLike(item) {\n  if (!item || typeof item !== 'object') return null;\n  const e = item.error;\n  if (e && typeof e === 'object') {\n    const msg = e.message ?? e.description ?? e.reason;\n    if (msg) {\n      return {\n        message: String(msg),\n        httpStatus: e.statusCode ?? e.status ?? null,\n        name: e.name ?? null,\n      };\n    }\n  }\n  if (item.name === 'AxiosError' || item.code === 'ERR_BAD_RESPONSE') {\n    const msg = item.message;\n    if (msg) {\n      return {\n        message: String(msg),\n        httpStatus: item.statusCode ?? item.status ?? null,\n        name: item.name ?? null,\n      };\n    }\n  }\n  return null;\n}\n\nfunction probeWorkflowErrors() {\n  const names = [\n    'HTTP — Validar calidad audio',\n    'HTTP — Análisis acústico (Praat)',\n    'HTTP — Whisper + NLP',\n    'HTTP — Modelo probabilístico',\n    'Postgres — Registrar sesión',\n    'Postgres — Guardar predicción',\n  ];\n  for (const name of names) {\n    try {\n      const ref = $(name);\n      if (!ref || typeof ref.all !== 'function') continue;\n      const list = typeof ref.all === 'function' ? ref.all() : [];\n      const also = [];\n      if (typeof ref.first === 'function') try { also.push(ref.first()); } catch (e2) { /* ignore */ }\n      if (typeof ref.last === 'function') try { also.push(ref.last()); } catch (e3) { /* ignore */ }\n      for (const it of [...list, ...also]) {\n        if (!it) continue;\n        const p = pickFromNodeApiError(it.error);\n        if (p) return p;\n        if (it.json) {\n          const p2 = pickAxiosLike(it.json);\n          if (p2) return p2;\n        }\n      }\n    } catch (e) {\n      continue;\n    }\n  }\n  return null;\n}\n\nconst root = $('Code — Validar payload').first().json;\nconst first = $input.first();\nconst hasExecShape = first && typeof first === 'object' && ('json' in first || 'error' in first);\nconst item = hasExecShape\n  ? (first.json !== undefined && first.json !== null ? first.json : {})\n  : (first || {});\nconst outerErr = hasExecShape ? first.error : undefined;\nlet picked = pickFromNodeApiError(outerErr);\nif (!picked && typeof $input.all === 'function') {\n  for (const it of $input.all()) {\n    const ex = it && typeof it === 'object' && ('json' in it || 'error' in it);\n    const p = pickFromNodeApiError(ex ? it.error : undefined);\n    if (p) {\n      picked = p;\n      break;\n    }\n  }\n}\nif (!picked) picked = probeWorkflowErrors();\nif (!picked) picked = pickAxiosLike(item);\nif (!picked && item.json && typeof item.json === 'object') {\n  picked = pickAxiosLike({ ...item, ...item.json });\n}\nlet message = picked ? picked.message : null;\nlet httpStatus = picked ? picked.httpStatus : null;\nlet name = picked ? picked.name : null;\n\nif (message == null && typeof item.message === 'string' && (item.name || item.stack)) {\n  message = item.message;\n  httpStatus = httpStatus ?? item.statusCode ?? null;\n  name = name ?? item.name ?? null;\n}\n\nif (message == null) {\n  const slim = { ...item };\n  delete slim.success;\n  delete slim.pairedItem;\n  delete slim.item;\n  const keys = Object.keys(slim).filter((k) => slim[k] !== undefined);\n  if (keys.length === 0) {\n    message = 'No se pudo leer el error del nodo (Code no recibe item.error en $input). Keys en json recibido: ' + JSON.stringify(Object.keys(item));\n  } else {\n    message = JSON.stringify(slim);\n  }\n}\n\nconst detail = fastApiDetail(message);\nif (detail) {\n  message = detail;\n}\n\nreturn [{\n  json: {\n    session_id: root.session_id,\n    patient_id: root.patient_id,\n    error: { message, httpStatus, name },\n  },\n}];"
+        "jsCode": "function fastApiDetail(text) {\n  if (text == null || typeof text !== 'string') return null;\n  const i = text.indexOf('{');\n  if (i === -1) return null;\n  try {\n    const o = JSON.parse(text.slice(i));\n    if (o && o.detail != null) {\n      return typeof o.detail === 'string' ? o.detail : JSON.stringify(o.detail);\n    }\n  } catch (err) { /* ignore */ }\n  return null;\n}\n\nfunction isMisleadingSuccessPayload(text) {\n  if (text == null || typeof text !== 'string') return false;\n  const i = text.indexOf('{');\n  if (i === -1) return false;\n  try {\n    const o = JSON.parse(text.slice(i));\n    if (o.opensmile === true && o.features) return true;\n    if (o.whisper === true && (o.transcript != null || o.metrics)) return true;\n    if (typeof o.p_parkinson === 'number') return true;\n    if (o.valid === true && o.duration_sec != null) return true;\n  } catch (e) { /* ignore */ }\n  return false;\n}\n\nfunction pickFromNodeApiError(err) {\n  if (!err || typeof err !== 'object') return null;\n  const msg = err.message ?? err.description ?? err.reason;\n  if (!msg) return null;\n  return {\n    message: String(msg),\n    httpStatus: err.statusCode ?? err.httpStatus ?? err.status ?? null,\n    name: err.name ?? err.type ?? null,\n  };\n}\n\nfunction pickAxiosLike(item) {\n  if (!item || typeof item !== 'object') return null;\n  const e = item.error;\n  if (e && typeof e === 'object') {\n    const msg = e.message ?? e.description ?? e.reason;\n    if (msg) {\n      return {\n        message: String(msg),\n        httpStatus: e.statusCode ?? e.status ?? null,\n        name: e.name ?? null,\n      };\n    }\n  }\n  if (item.name === 'AxiosError' || item.code === 'ERR_BAD_RESPONSE') {\n    const msg = item.message;\n    if (msg) {\n      return {\n        message: String(msg),\n        httpStatus: item.statusCode ?? item.status ?? null,\n        name: item.name ?? null,\n      };\n    }\n  }\n  return null;\n}\n\nfunction probeWorkflowErrors() {\n  const names = [\n    'HTTP — Validar calidad audio',\n    'HTTP — Análisis acústico (Praat)',\n    'HTTP — Whisper + NLP',\n    'HTTP — Modelo probabilístico',\n    'Postgres — Registrar sesión',\n    'Postgres — Guardar predicción',\n  ];\n  for (const name of names) {\n    try {\n      const ref = $(name);\n      if (!ref || typeof ref.all !== 'function') continue;\n      const list = typeof ref.all === 'function' ? ref.all() : [];\n      const also = [];\n      if (typeof ref.first === 'function') try { also.push(ref.first()); } catch (e2) { /* ignore */ }\n      if (typeof ref.last === 'function') try { also.push(ref.last()); } catch (e3) { /* ignore */ }\n      for (const it of [...list, ...also]) {\n        if (!it) continue;\n        const p = pickFromNodeApiError(it.error);\n        if (p) return p;\n        if (it.json) {\n          const p2 = pickAxiosLike(it.json);\n          if (p2) return p2;\n        }\n      }\n    } catch (e) {\n      continue;\n    }\n  }\n  return null;\n}\n\nconst root = $('Code — Validar payload').first().json;\nconst first = $input.first();\nconst hasExecShape = first && typeof first === 'object' && ('json' in first || 'error' in first);\nconst item = hasExecShape\n  ? (first.json !== undefined && first.json !== null ? first.json : {})\n  : (first || {});\nconst outerErr = hasExecShape ? first.error : undefined;\nlet picked = pickFromNodeApiError(outerErr);\nif (!picked && typeof $input.all === 'function') {\n  for (const it of $input.all()) {\n    const ex = it && typeof it === 'object' && ('json' in it || 'error' in it);\n    const p = pickFromNodeApiError(ex ? it.error : undefined);\n    if (p) {\n      picked = p;\n      break;\n    }\n  }\n}\nif (!picked) picked = probeWorkflowErrors();\nif (!picked) picked = pickAxiosLike(item);\nif (!picked && item.json && typeof item.json === 'object') {\n  picked = pickAxiosLike({ ...item, ...item.json });\n}\nlet message = picked ? picked.message : null;\nlet httpStatus = picked ? picked.httpStatus : null;\nlet name = picked ? picked.name : null;\n\nif (message == null && typeof item.message === 'string' && (item.name || item.stack)) {\n  message = item.message;\n  httpStatus = httpStatus ?? item.statusCode ?? null;\n  name = name ?? item.name ?? null;\n}\n\nif (message == null) {\n  const slim = { ...item };\n  delete slim.success;\n  delete slim.pairedItem;\n  delete slim.item;\n  const keys = Object.keys(slim).filter((k) => slim[k] !== undefined);\n  if (keys.length === 0) {\n    message = 'No se pudo leer el error del nodo (Code no recibe item.error en $input). Keys en json recibido: ' + JSON.stringify(Object.keys(item));\n  } else {\n    message = JSON.stringify(slim);\n  }\n}\n\nconst detail = fastApiDetail(message);\nif (detail) {\n  message = detail;\n}\n\nif (isMisleadingSuccessPayload(message)) {\n  message =\n    'Fallo en un paso posterior (Merge, Whisper, predict o Postgres). En n8n abra la ejecución y el nodo en rojo; el texto largo anterior era una respuesta HTTP OK mal interpretada como error.';\n}\n\nreturn [{\n  json: {\n    session_id: root.session_id,\n    patient_id: root.patient_id,\n    error: { message, httpStatus, name },\n  },\n}];"
       },
       "id": "err-code-norm-001",
       "name": "Code — Normalizar error pipeline",
@@ -474,6 +508,40 @@
           "name": "Postgres Parkinson"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://5.78.157.191:8080/api/webhooks/recording-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "CHANGE_ME_SAME_AS_APP_WEBHOOK_RECORDING_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { recordingId: $('Code — Normalizar error pipeline').first().json.session_id, patientId: $('Code — Normalizar error pipeline').first().json.patient_id, status: 'failed', errorMessage: String($('Code — Normalizar error pipeline').first().json.error.message || '').substring(0, 1900) } }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "b2c3d4e5-2233-4455-6677-88990011bbcc",
+      "name": "HTTP — Backend estado grabación (fallo)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4472,
+        100
+      ],
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -693,6 +761,11 @@
             "node": "IF — Riesgo alto (≥ 0.7)",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "HTTP — Backend estado grabación (OK)",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -748,6 +821,17 @@
       ]
     },
     "Postgres — Marcar sesión fallida": {
+      "main": [
+        [
+          {
+            "node": "HTTP — Backend estado grabación (fallo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP — Backend estado grabación (fallo)": {
       "main": [
         [
           {

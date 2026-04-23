@@ -22,10 +22,3 @@ export interface PatientFormData {
   comorbidities?: string
   symptomsOnsetMonths?: number
 }
-
-export interface SessionSummary {
-  id: string
-  date: string
-  riskProbability?: number
-  status: 'normal' | 'alerta'
-}

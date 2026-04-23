@@ -1,11 +1,8 @@
 package com.parkinson.backend.controller;
 
 import com.parkinson.backend.model.dto.request.LoginRequestDto;
-import com.parkinson.backend.model.dto.response.LoginResponseDto;
 import com.parkinson.backend.model.dto.response.UserDto;
 import com.parkinson.backend.service.AuthService;
-import com.parkinson.backend.util.WebUtils;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -24,9 +21,8 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequestDto request, HttpServletRequest httpRequest) {
-        String clientIp = WebUtils.getClientIp(httpRequest);
-        LoginResponseDto dto = authService.login(request, clientIp);
+    public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequestDto request) {
+        var dto = authService.login(request);
         return ResponseEntity.ok()
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + dto.getToken())
                 .body(Map.of("message", dto.getMessage()));

@@ -14,14 +14,27 @@ import { PageHeader, SectionCard, SectionCardSimple, SectionDivider } from '@/la
 const createSchema = z.object({
   name: z.string().min(1, 'Nombre obligatorio'),
   email: z.string().email('Correo inválido'),
+  username: z.string().max(100, 'Máximo 100 caracteres').optional(),
   password: z.string().min(8, 'Mínimo 8 caracteres'),
   role: z.enum(ROLE_KEYS as unknown as [string, ...string[]]),
 })
 
+const editSchema = z.object({
+  name: z.string().min(1, 'Nombre obligatorio'),
+  email: z.string().email('Correo inválido'),
+  username: z.string().max(100, 'Máximo 100 caracteres').optional(),
+  password: z
+    .string()
+    .optional()
+    .refine((v) => !v || v.length >= 8, 'Mínimo 8 caracteres si indica contraseña'),
+  role: z.enum(ROLE_KEYS as unknown as [string, ...string[]]),
+})
+
 type CreateFormValues = z.infer<typeof createSchema>
+type EditFormValues = z.infer<typeof editSchema>
 
 export function UserManagementPage() {
-  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('')
@@ -45,7 +58,7 @@ export function UserManagementPage() {
       updateUser(id, input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      setEditingId(null)
+      setEditingUser(null)
     },
   })
 
@@ -54,18 +67,57 @@ export function UserManagementPage() {
     defaultValues: {
       name: '',
       email: '',
+      username: '',
       password: '',
-      role: ROLE_KEYS[0],
+      role: ROLES.ADMIN,
     },
   })
 
+  const editForm = useForm<EditFormValues>({
+    resolver: zodResolver(editSchema),
+    defaultValues: {
+      name: '',
+      email: '',
+      username: '',
+      password: '',
+      role: ROLES.ADMIN,
+    },
+  })
+
+  const openEditUser = (u: User) => {
+    setEditingUser(u)
+    const roleOk = (ROLE_KEYS as readonly string[]).includes(u.role)
+    editForm.reset({
+      name: u.name,
+      email: u.email,
+      username: u.username ?? '',
+      password: '',
+      role: (roleOk ? u.role : ROLES.ADMIN) as EditFormValues['role'],
+    })
+  }
+
   const handleCreate = (data: CreateFormValues) => {
+    const trimmedUser = data.username?.trim()
     createMutation.mutate({
       name: data.name,
       email: data.email,
       password: data.password,
       role: data.role,
+      ...(trimmedUser ? { username: trimmedUser } : {}),
     })
+  }
+
+  const handleEditSubmit = (data: EditFormValues) => {
+    if (!editingUser) return
+    const trimmedUser = data.username?.trim()
+    const input: UpdateUserInput = {
+      name: data.name,
+      email: data.email,
+      role: data.role,
+      ...(trimmedUser ? { username: trimmedUser } : {}),
+      ...(data.password?.trim() ? { password: data.password.trim() } : {}),
+    }
+    updateMutation.mutate({ id: editingUser.id, input })
   }
 
   const handleToggleActive = (u: User) => {
@@ -73,14 +125,6 @@ export function UserManagementPage() {
       id: u.id,
       input: { active: !u.active },
     })
-  }
-
-  const handleEditRole = (u: User, newRole: string) => {
-    updateMutation.mutate({
-      id: u.id,
-      input: { role: newRole },
-    })
-    setEditingId(null)
   }
 
   const filteredUsers = users.filter((u) => {
@@ -185,6 +229,18 @@ export function UserManagementPage() {
               )}
             </div>
             <div className="form-field">
+              <label className="form-label">Nombre de usuario (opcional)</label>
+              <input
+                placeholder="Si lo omite, podrá iniciar sesión con el correo"
+                className="input-base"
+                autoComplete="username"
+                {...createForm.register('username')}
+              />
+              {createForm.formState.errors.username && (
+                <p className="form-error">{createForm.formState.errors.username.message}</p>
+              )}
+            </div>
+            <div className="form-field">
               <label className="form-label">Contraseña</label>
               <input
                 type="password"
@@ -226,6 +282,87 @@ export function UserManagementPage() {
         </form>
       </Modal>
 
+      <Modal
+        open={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        title="Editar usuario"
+        subtitle="Actualice datos, contraseña (opcional) o rol — por ejemplo administrador."
+        maxWidth="max-w-lg"
+      >
+        <form
+          onSubmit={editForm.handleSubmit(handleEditSubmit)}
+          className="p-4 sm:p-5"
+        >
+          <div className="space-y-4">
+            <div className="form-field">
+              <label className="form-label">Nombre completo</label>
+              <input className="input-base" {...editForm.register('name')} />
+              {editForm.formState.errors.name && (
+                <p className="form-error">{editForm.formState.errors.name.message}</p>
+              )}
+            </div>
+            <div className="form-field">
+              <label className="form-label">Correo electrónico</label>
+              <input type="email" className="input-base" {...editForm.register('email')} />
+              {editForm.formState.errors.email && (
+                <p className="form-error">{editForm.formState.errors.email.message}</p>
+              )}
+            </div>
+            <div className="form-field">
+              <label className="form-label">Nombre de usuario</label>
+              <input
+                className="input-base"
+                autoComplete="username"
+                placeholder="Dejar vacío mantiene el actual si ya existe"
+                {...editForm.register('username')}
+              />
+              {editForm.formState.errors.username && (
+                <p className="form-error">{editForm.formState.errors.username.message}</p>
+              )}
+            </div>
+            <div className="form-field">
+              <label className="form-label">Nueva contraseña</label>
+              <input
+                type="password"
+                placeholder="Dejar vacío para no cambiar"
+                className="input-base"
+                autoComplete="new-password"
+                {...editForm.register('password')}
+              />
+              {editForm.formState.errors.password && (
+                <p className="form-error">{editForm.formState.errors.password.message}</p>
+              )}
+            </div>
+            <div className="form-field">
+              <label className="form-label">Rol</label>
+              <select className="input-base" {...editForm.register('role')}>
+                {ROLE_KEYS.map((k) => (
+                  <option key={k} value={k}>
+                    {ROLE_LABELS[ROLES[k]]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-wrap gap-3 border-t border-slate-200 pt-5 dark:border-slate-600">
+            <button
+              type="submit"
+              disabled={updateMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-sky-600 disabled:opacity-50 dark:bg-sky-600 dark:hover:bg-sky-500"
+            >
+              {updateMutation.isPending ? 'Guardando…' : 'Guardar cambios'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditingUser(null)}
+              className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       <SectionDivider label="Lista de usuarios" />
       {isLoading ? (
         <SectionCardSimple>
@@ -239,6 +376,9 @@ export function UserManagementPage() {
                 <tr className="h-12 border-b border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-800/60">
                   <th className="px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Nombre
+                  </th>
+                  <th className="px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                    Usuario
                   </th>
                   <th className="px-4 py-3 text-left align-middle text-xs font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-300">
                     Correo
@@ -257,7 +397,7 @@ export function UserManagementPage() {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
+                    <td colSpan={6} className="px-4 py-12 text-center text-slate-500 dark:text-slate-400">
                       Todavía no hay registros.
                     </td>
                   </tr>
@@ -265,30 +405,16 @@ export function UserManagementPage() {
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="border-b border-slate-100 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700/50">
                     <td className="px-4 py-3.5 align-middle font-medium text-slate-800 dark:text-slate-100">{u.name}</td>
+                    <td className="px-4 py-3.5 align-middle text-slate-600 dark:text-slate-300">
+                      {u.username?.trim() ? (
+                        <span className="font-mono text-xs">{u.username}</span>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500">(correo)</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3.5 align-middle text-slate-600 dark:text-slate-300">{u.email}</td>
                     <td className="px-4 py-3.5 align-middle text-slate-600 dark:text-slate-300">
-                      {editingId === u.id ? (
-                        <select
-                          className="input-base"
-                          defaultValue={u.role}
-                          onChange={(e) => handleEditRole(u, e.target.value)}
-                          onBlur={() => setEditingId(null)}
-                          autoFocus
-                        >
-                          {ROLE_KEYS.map((k) => (
-                            <option key={k} value={ROLES[k]}>
-                              {ROLE_LABELS[ROLES[k]]}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span
-                          className="cursor-pointer text-sky-600 transition-colors hover:text-sky-700 hover:underline dark:text-sky-400 dark:hover:text-sky-300"
-                          onClick={() => setEditingId(u.id)}
-                        >
-                          {roleLabel(u.role)}
-                        </span>
-                      )}
+                      {roleLabel(u.role)}
                     </td>
                     <td className="px-4 py-3.5 align-middle">
                       <span
@@ -302,13 +428,22 @@ export function UserManagementPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-right align-middle">
-                      <button
-                        type="button"
-                        onClick={() => handleToggleActive(u)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                      >
-                        {u.active ? 'Desactivar' : 'Activar'}
-                      </button>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditUser(u)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleActive(u)}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                          {u.active ? 'Desactivar' : 'Activar'}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

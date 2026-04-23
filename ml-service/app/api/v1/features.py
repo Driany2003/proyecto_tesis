@@ -11,10 +11,6 @@ router = APIRouter(prefix="/features", tags=["Features"])
 
 @router.post("/acoustic", response_model=AcousticResponse)
 async def acoustic_analysis_endpoint(req: AcousticRequest):
-    """
-    Extrae features acústicas del audio: F0, jitter, shimmer, HNR.
-    Usa Praat (parselmouth) internamente.
-    """
     logger.info("Análisis acústico: session=%s", req.session_id)
     return await analyze_acoustic(
         session_id=req.session_id,

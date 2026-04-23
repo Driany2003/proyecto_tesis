@@ -23,13 +23,17 @@ const schema = z
     alertThreshold: z.coerce.number().min(0).max(100),
     criticalThreshold: z.union([z.coerce.number().min(0).max(100), z.literal('')]),
   })
-  .refine((d) => d.lowMax < d.moderateMin, {
-    message: 'Riesgo bajo (máx) debe ser menor que riesgo moderado (mín)',
+  .refine((d) => d.lowMax <= d.moderateMin, {
+    message: 'El máximo de bajo debe ser ≤ al mínimo de moderado (30 y 30 es válido en la frontera).',
     path: ['moderateMin'],
   })
-  .refine((d) => d.moderateMin <= d.moderateMax && d.moderateMax < d.highMin, {
-    message: 'Moderado: mín ≤ máx y moderado máx < alto mín',
+  .refine((d) => d.moderateMin <= d.moderateMax, {
+    message: 'Moderado: el mínimo debe ser ≤ al máximo.',
     path: ['moderateMax'],
+  })
+  .refine((d) => d.moderateMax <= d.highMin, {
+    message: 'El máximo de moderado debe ser ≤ al mínimo de alto (60 y 60 es válido en la frontera).',
+    path: ['highMin'],
   })
 
 type FormValues = z.infer<typeof schema>
@@ -47,15 +51,20 @@ export function RiskThresholdsPage() {
     queryFn: getThresholdHistory,
   })
 
+  const invalidateThresholdQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['risk-thresholds'] })
+    queryClient.invalidateQueries({ queryKey: ['threshold-history'] })
+  }
+
   const updateMutation = useMutation({
     mutationFn: ({ values, reason }: { values: RiskThresholds; reason?: string }) =>
       updateRiskThresholds(values, reason),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['risk-thresholds'] }),
+    onSuccess: invalidateThresholdQueries,
   })
 
   const resetMutation = useMutation({
     mutationFn: resetRiskThresholds,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['risk-thresholds'] }),
+    onSuccess: invalidateThresholdQueries,
   })
 
   const form = useForm<FormValues>({
@@ -102,7 +111,12 @@ export function RiskThresholdsPage() {
   }
 
   const handleReset = () => {
-    if (!window.confirm('¿Restaurar valores por defecto? (0-39% bajo, 40-69% moderado, ≥70% alto)')) return
+    if (
+      !window.confirm(
+        '¿Restaurar valores por defecto? (bajo ≤30%, moderado 30–60%, alto ≥60%; alerta 70%, crítico 85%)',
+      )
+    )
+      return
     resetMutation.mutate()
   }
 

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Backend: variables de entorno locales (SPRING_DATASOURCE_PASSWORD, APP_MINIO_*, etc.)
+backend/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

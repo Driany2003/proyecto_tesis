@@ -11,10 +11,6 @@ router = APIRouter(prefix="/nlp", tags=["NLP"])
 
 @router.post("/transcribe-and-metrics", response_model=NLPResponse)
 async def transcribe_and_metrics_endpoint(req: NLPRequest):
-    """
-    Transcribe audio con Whisper y calcula métricas lingüísticas:
-    TTR, palabras por minuto, muletillas, ratio de pausas, etc.
-    """
     logger.info("Transcripción + NLP: session=%s", req.session_id)
     return await transcribe_and_analyze(
         session_id=req.session_id,

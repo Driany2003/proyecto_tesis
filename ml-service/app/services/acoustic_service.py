@@ -6,16 +6,14 @@ import parselmouth
 from parselmouth.praat import call
 
 from app.schemas.features import AcousticFeatures, AcousticResponse
-from app.services.audio_service import cleanup_audio, download_audio, prepare_audio_file
+from app.services.audio_service import cleanup_audio, download_audio, maybe_enhance_for_ml, prepare_audio_file
 
 logger = logging.getLogger("ml-service.acoustic")
 
 
 def extract_acoustic_features(audio_path: Path) -> AcousticFeatures:
-    """Extrae features acústicas usando Praat (parselmouth)."""
     snd = parselmouth.Sound(str(audio_path))
 
-    # --- Pitch (F0) ---
     pitch = call(snd, "To Pitch", 0.0, 75.0, 600.0)
     f0_values = pitch.selected_array["frequency"]
     f0_voiced = f0_values[f0_values > 0]
@@ -29,16 +27,12 @@ def extract_acoustic_features(audio_path: Path) -> AcousticFeatures:
         f0_min = float(np.min(f0_voiced))
         f0_max = float(np.max(f0_voiced))
 
-    # --- Jitter ---
     point_process = call(snd, "To PointProcess (periodic, cc)", 75.0, 600.0)
     jitter = call(point_process, "Get jitter (local)", 0.0, 0.0, 0.0001, 0.02, 1.3)
-
-    # --- Shimmer ---
     shimmer = call(
         [snd, point_process], "Get shimmer (local)", 0.0, 0.0, 0.0001, 0.02, 1.3, 1.6
     )
 
-    # --- HNR ---
     harmonicity = call(snd, "To Harmonicity (cc)", 0.01, 75.0, 0.1, 1.0)
     hnr = call(harmonicity, "Get mean", 0.0, 0.0)
 
@@ -62,18 +56,20 @@ def extract_acoustic_features(audio_path: Path) -> AcousticFeatures:
 
 
 async def analyze_acoustic(session_id: str, patient_id: str, audio_uri: str) -> AcousticResponse:
-    """Pipeline completo: descarga → extrae features acústicas."""
     audio_path = await download_audio(audio_uri)
     paths_to_delete: list[Path] = [audio_path]
 
     try:
         work_path, paths_to_delete = prepare_audio_file(audio_path)
+        work_path, extra_paths = maybe_enhance_for_ml(work_path)
+        paths_to_delete.extend(extra_paths)
         features = extract_acoustic_features(work_path)
 
         return AcousticResponse(
             session_id=session_id,
             patient_id=patient_id,
-            opensmile=True,
+            opensmile=False,
+            engine="praat",
             features=features,
             f0_mean=features.f0_mean,
             f0_std=features.f0_std,

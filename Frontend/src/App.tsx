@@ -42,7 +42,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="patients/new" element={<Navigate to="/patients" replace />} />
               <Route
                 path="patients/:id"
                 element={

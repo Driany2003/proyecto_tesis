@@ -1,14 +1,11 @@
 package com.parkinson.backend.model.dto.response;
 
-import lombok.*;
+import lombok.Builder;
+import lombok.Getter;
 
 @Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 @Builder
 public class LoginResponseDto {
-    private String message;
-    private UserDto user;
-    private String token;
+    private final String message;
+    private final String token;
 }

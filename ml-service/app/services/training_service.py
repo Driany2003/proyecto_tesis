@@ -1,7 +1,4 @@
-"""Servicio de entrenamiento y re-entrenamiento del modelo."""
-
 import logging
-import tempfile
 from pathlib import Path
 
 import joblib
@@ -19,24 +16,42 @@ from app.config import settings
 
 logger = logging.getLogger("ml-service.training")
 
-DB_CONFIG = {
-    "host": "5.78.157.191",
-    "port": 5432,
-    "dbname": "tesis_parkinson",
-    "user": "giomar",
-    "password": "giomar2003@",
-}
-
 FEATURE_COLS = ["f0_mean", "jitter", "shimmer", "hnr", "nhr"]
+RETRAIN_THRESHOLD = 10
 
 _retrain_counter = 0
-RETRAIN_THRESHOLD = 10
+
+
+def get_db_config() -> dict:
+    missing = [
+        name
+        for name, value in (
+            ("ML_DB_HOST", settings.db_host),
+            ("ML_DB_NAME", settings.db_name),
+            ("ML_DB_USER", settings.db_user),
+            ("ML_DB_PASSWORD", settings.db_password),
+        )
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            "Faltan variables de entorno para conectar a PostgreSQL: " + ", ".join(missing)
+        )
+    return {
+        "host": settings.db_host,
+        "port": settings.db_port,
+        "dbname": settings.db_name,
+        "user": settings.db_user,
+        "password": settings.db_password,
+    }
 
 
 def load_training_data() -> tuple[np.ndarray, np.ndarray, list[str]]:
-    conn = psycopg2.connect(**DB_CONFIG)
-    df = pd.read_sql("SELECT * FROM training_samples", conn)
-    conn.close()
+    conn = psycopg2.connect(**get_db_config())
+    try:
+        df = pd.read_sql("SELECT * FROM training_samples", conn)
+    finally:
+        conn.close()
 
     available = [c for c in FEATURE_COLS if c in df.columns and df[c].notna().sum() > 0]
     X = df[available].fillna(0).values
@@ -47,11 +62,18 @@ def load_training_data() -> tuple[np.ndarray, np.ndarray, list[str]]:
 
 
 def train_model(X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> dict:
-    """Entrena el modelo y devuelve el bundle para guardar."""
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
-    cv = StratifiedKFold(n_splits=min(5, min(np.bincount(y))), shuffle=True, random_state=42)
+    class_counts = np.bincount(y)
+    min_count = int(class_counts.min()) if class_counts.size > 0 else 0
+    if min_count < 2:
+        raise ValueError(
+            "Cada clase necesita al menos 2 muestras para validación cruzada estratificada;"
+            f" distribución actual: {dict(enumerate(class_counts.tolist()))}"
+        )
+    n_splits = max(2, min(5, min_count))
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
 
     rf = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42, class_weight="balanced")
     xgb = XGBClassifier(
@@ -86,7 +108,15 @@ def train_model(X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> dict:
     y_pred = calibrated.predict(X_scaled)
     y_proba_final = calibrated.predict_proba(X_scaled)[:, 1]
 
-    tn, fp, fn, tp = confusion_matrix(y, y_pred).ravel()
+    cm = confusion_matrix(y, y_pred, labels=[0, 1])
+    if cm.shape != (2, 2):
+        logger.warning("confusion_matrix con forma inesperada %s; rellenando con ceros", cm.shape)
+        padded = np.zeros((2, 2), dtype=int)
+        rows = min(cm.shape[0], 2)
+        cols = min(cm.shape[1], 2)
+        padded[:rows, :cols] = cm[:rows, :cols]
+        cm = padded
+    tn, fp, fn, tp = cm.ravel()
     metrics = {
         "model_name": best_name,
         "samples": int(len(y)),
@@ -109,7 +139,6 @@ def train_model(X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> dict:
 
 
 def save_and_reload(bundle: dict) -> None:
-    """Guarda el modelo y recarga en el model_service."""
     model_path = Path(settings.model_path)
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(bundle, str(model_path))
@@ -121,7 +150,6 @@ def save_and_reload(bundle: dict) -> None:
 
 
 async def retrain() -> dict:
-    """Re-entrena el modelo con todos los datos disponibles."""
     logger.info("Iniciando re-entrenamiento...")
     X, y, features = load_training_data()
 
@@ -139,7 +167,6 @@ async def retrain() -> dict:
 
 
 def increment_sample_counter() -> bool:
-    """Incrementa contador y retorna True si se alcanzó el umbral de re-entrenamiento."""
     global _retrain_counter
     _retrain_counter += 1
     return _retrain_counter >= RETRAIN_THRESHOLD

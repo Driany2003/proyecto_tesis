@@ -29,7 +29,6 @@ public class BackupRecordServiceImpl implements BackupRecordService {
         if (!backupRecordRepository.existsById(backupId)) {
             throw new ResourceNotFoundException("Respaldo", backupId);
         }
-        // En producción aquí se invocaría el proceso de restauración real
     }
 
     private BackupRecordDto toDto(BackupRecord b) {

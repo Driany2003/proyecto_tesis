@@ -68,6 +68,7 @@ public class RiskThresholdServiceImpl implements RiskThresholdService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ThresholdHistoryDto> getHistory(int limit) {
         return thresholdHistoryRepository.findAllByOrderByChangedAtDesc(PageRequest.of(0, limit))
                 .stream()

@@ -6,10 +6,6 @@ import lombok.*;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * Registro de acceso: username, role, fechas de creación, actualización y última vez logueado.
- * Relación 1:1 con User.
- */
 @Entity
 @Table(name = "T_authorities")
 @Getter

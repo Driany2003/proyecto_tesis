@@ -8,7 +8,6 @@ import { SectionCard, SectionCardSimple } from '@/layout/PageSection'
 interface ConversationGuideProps {
   questions: ConversationQuestion[]
   onComplete: (audioBlob: Blob, durationSeconds: number) => void | Promise<void>
-  /** Deshabilitar controles (p. ej. mientras se sube el audio) */
   disabled?: boolean
 }
 

@@ -11,6 +11,7 @@ from app.schemas.model import FeatureImportance, PredictResponse
 logger = logging.getLogger("ml-service.model")
 
 _model = None
+_scaler = None
 _model_features: list[str] = []
 
 FEATURE_ORDER = [
@@ -34,8 +35,7 @@ def get_risk_band(probability: float) -> str:
 
 
 def load_model():
-    """Carga el modelo serializado (.joblib) desde disco."""
-    global _model, _model_features
+    global _model, _scaler, _model_features
     model_path = Path(settings.model_path)
 
     if not model_path.exists():
@@ -46,20 +46,25 @@ def load_model():
 
     if isinstance(bundle, dict):
         _model = bundle.get("model")
+        _scaler = bundle.get("scaler")
         _model_features = bundle.get("features", FEATURE_ORDER)
     else:
         _model = bundle
+        _scaler = None
         _model_features = FEATURE_ORDER
 
-    logger.info("Modelo cargado: %s", type(_model).__name__)
+    logger.info(
+        "Modelo cargado: %s (scaler=%s, features=%d)",
+        type(_model).__name__,
+        type(_scaler).__name__ if _scaler is not None else "ninguno",
+        len(_model_features),
+    )
     return _model
 
 
 def build_feature_vector(acoustic: dict, nlp: dict, clinical: dict) -> np.ndarray:
-    """Construye el vector de features en el orden esperado por el modelo."""
     raw = {**acoustic, **nlp, **clinical}
 
-    # Aplanar features anidadas si existen
     if "features" in raw and isinstance(raw["features"], dict):
         raw.update(raw.pop("features"))
     if "metrics" in raw and isinstance(raw["metrics"], dict):
@@ -80,11 +85,6 @@ def build_feature_vector(acoustic: dict, nlp: dict, clinical: dict) -> np.ndarra
 def compute_confidence_interval(
     model, X: np.ndarray, confidence: float = 0.95
 ) -> tuple[float, float, float]:
-    """
-    Calcula probabilidad e IC 95%.
-    - Para RandomForest/GradientBoosting: usa estimadores individuales.
-    - Para otros modelos: usa bootstrap sobre predict_proba.
-    """
     if hasattr(model, "estimators_"):
         preds = np.array([est.predict(X)[0] if not hasattr(est, "predict_proba")
                           else est.predict_proba(X)[0][1]
@@ -96,7 +96,7 @@ def compute_confidence_interval(
     elif hasattr(model, "predict_proba"):
         proba = model.predict_proba(X)
         p_mean = float(proba[0][1]) if proba.shape[1] > 1 else float(proba[0][0])
-        se = 0.05  # estimación conservadora del error estándar
+        se = 0.05
         ci_low = max(0.0, p_mean - 1.96 * se)
         ci_high = min(1.0, p_mean + 1.96 * se)
     else:
@@ -112,7 +112,6 @@ def compute_confidence_interval(
 
 
 def get_feature_importances(model, feature_names: list[str]) -> list[FeatureImportance]:
-    """Extrae importancia de features si el modelo lo soporta."""
     importances = None
 
     if hasattr(model, "feature_importances_"):
@@ -137,7 +136,6 @@ async def predict(
     nlp: dict,
     clinical: dict,
 ) -> PredictResponse:
-    """Ejecuta la predicción completa con IC y feature importance."""
     global _model
 
     if _model is None:
@@ -148,6 +146,13 @@ async def predict(
 
     X = build_feature_vector(acoustic, nlp, clinical)
     features_used = _model_features if _model_features else FEATURE_ORDER
+
+    if _scaler is not None:
+        try:
+            X = _scaler.transform(X)
+        except Exception as exc:
+            logger.error("Fallo aplicando scaler en inferencia: %s", exc)
+            raise
 
     p_parkinson, ci_low, ci_high = compute_confidence_interval(_model, X)
     risk_band = get_risk_band(p_parkinson)

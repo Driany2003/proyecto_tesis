@@ -15,8 +15,3 @@ export async function createPatient(form: PatientFormData): Promise<Patient> {
   const { data } = await apiClient.post<Patient>('/patients', form)
   return data
 }
-
-export async function updatePatient(id: string, form: Partial<PatientFormData>): Promise<Patient> {
-  const { data } = await apiClient.patch<Patient>(`/patients/${id}`, form)
-  return data
-}

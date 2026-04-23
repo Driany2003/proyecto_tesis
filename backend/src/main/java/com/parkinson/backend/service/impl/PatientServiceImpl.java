@@ -1,7 +1,9 @@
 package com.parkinson.backend.service.impl;
 
+import com.parkinson.backend.context.RequestContext;
 import com.parkinson.backend.model.dto.request.CreatePatientDto;
 import com.parkinson.backend.model.dto.response.PatientDto;
+import com.parkinson.backend.model.dto.response.PatientListItemDto;
 import com.parkinson.backend.exception.ResourceNotFoundException;
 import com.parkinson.backend.model.entity.Patient;
 import com.parkinson.backend.repository.PatientRepository;
@@ -23,14 +25,16 @@ public class PatientServiceImpl implements PatientService {
     private final PatientRepository patientRepository;
     private final AuditLogService auditLogService;
     private final UserRepository userRepository;
+    private final RequestContext requestContext;
 
     @Override
     @Transactional(readOnly = true)
-    public List<PatientDto> findAll(Optional<String> search) {
-        List<Patient> list = search.filter(s -> !s.isBlank())
-                .map(s -> patientRepository.findByFullNameContainingIgnoreCaseOrDniContaining(s, s))
-                .orElseGet(patientRepository::findAll);
-        return list.stream().map(this::toDto).toList();
+    public List<PatientListItemDto> findAll(Optional<String> search) {
+        return search
+                .filter(s -> !s.isBlank())
+                .map(String::trim)
+                .map(patientRepository::searchSummary)
+                .orElseGet(patientRepository::findAllSummaryOrdered);
     }
 
     @Override
@@ -41,13 +45,14 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional
-    public PatientDto create(CreatePatientDto dto, String currentUserEmail, String clientIp) {
-        Patient patient = toEntity(dto);
-        patient = patientRepository.save(patient);
+    public PatientDto create(CreatePatientDto dto) {
+        Patient patient = patientRepository.save(toEntity(dto));
         PatientDto result = toDto(patient);
-        if (currentUserEmail != null && !currentUserEmail.isBlank()) {
-            userRepository.findByEmail(currentUserEmail).ifPresent(actor ->
-                    auditLogService.log(actor, "CREATE", "patient", result.getId().toString(), "SUCCESS", clientIp, "Paciente creado")
+        String email = requestContext.getCurrentUserEmail();
+        if (email != null) {
+            userRepository.findByEmail(email).ifPresent(actor ->
+                    auditLogService.log(actor, "CREATE", "patient", result.getId().toString(),
+                            "SUCCESS", requestContext.getClientIp(), "Paciente creado")
             );
         }
         return result;
@@ -55,8 +60,9 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional
-    public PatientDto update(UUID id, CreatePatientDto dto, String currentUserEmail, String clientIp) {
-        Patient patient = patientRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Paciente", id));
+    public PatientDto update(UUID id, CreatePatientDto dto) {
+        Patient patient = patientRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Paciente", id));
         patient.setFullName(dto.getFullName());
         patient.setAge(dto.getAge());
         patient.setGender(dto.getGender());
@@ -65,11 +71,12 @@ public class PatientServiceImpl implements PatientService {
         patient.setMedication(dto.getMedication());
         patient.setComorbidities(dto.getComorbidities());
         patient.setSymptomsOnsetMonths(dto.getSymptomsOnsetMonths());
-        patient = patientRepository.save(patient);
-        PatientDto result = toDto(patient);
-        if (currentUserEmail != null && !currentUserEmail.isBlank()) {
-            userRepository.findByEmail(currentUserEmail).ifPresent(actor ->
-                    auditLogService.log(actor, "UPDATE", "patient", id.toString(), "SUCCESS", clientIp, "Paciente actualizado")
+        PatientDto result = toDto(patientRepository.save(patient));
+        String email = requestContext.getCurrentUserEmail();
+        if (email != null) {
+            userRepository.findByEmail(email).ifPresent(actor ->
+                    auditLogService.log(actor, "UPDATE", "patient", id.toString(),
+                            "SUCCESS", requestContext.getClientIp(), "Paciente actualizado")
             );
         }
         return result;

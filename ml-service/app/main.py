@@ -45,7 +45,6 @@ app.include_router(v1_router, prefix="/v1")
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Errores no previstos (Praat, Whisper, libs): 500 con detail legible para logs/n8n."""
     if isinstance(exc, HTTPException):
         return await http_exception_handler(request, exc)
     if isinstance(exc, RequestValidationError):

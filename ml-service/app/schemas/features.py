@@ -22,7 +22,10 @@ class AcousticFeatures(BaseModel):
 class AcousticResponse(BaseModel):
     session_id: str
     patient_id: str
-    opensmile: bool = Field(True, description="Indica que se usó análisis acústico")
+    opensmile: bool = Field(
+        False, description="True solo si las features provienen de openSMILE"
+    )
+    engine: str = Field("praat", description="Motor utilizado: 'praat' u 'opensmile'")
     features: AcousticFeatures
     f0_mean: float
     f0_std: float

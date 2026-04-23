@@ -11,7 +11,6 @@ import java.util.UUID;
 public interface UserService {
     List<UserDto> findAll();
     Optional<UserDto> findById(UUID id);
-    /** currentUserEmail y clientIp opcionales; si se pasan, se registra en auditoría. */
-    UserDto create(CreateUserDto dto, String currentUserEmail, String clientIp);
-    UserDto update(UUID id, UpdateUserDto dto, String currentUserEmail, String clientIp);
+    UserDto create(CreateUserDto dto);
+    UserDto update(UUID id, UpdateUserDto dto);
 }

@@ -1,5 +1,6 @@
 package com.parkinson.backend.service.impl;
 
+import com.parkinson.backend.context.RequestContext;
 import com.parkinson.backend.model.dto.request.CreateUserDto;
 import com.parkinson.backend.model.dto.request.UpdateUserDto;
 import com.parkinson.backend.model.dto.response.UserDto;
@@ -31,6 +32,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final RequestContext requestContext;
 
     @Override
     @Transactional(readOnly = true)
@@ -46,7 +48,9 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto create(CreateUserDto dto, String currentUserEmail, String clientIp) {
+    public UserDto create(CreateUserDto dto) {
+        String currentUserEmail = requestContext.getCurrentUserEmail();
+        String clientIp = requestContext.getClientIp();
         if (userRepository.existsByEmail(dto.getEmail())) {
             throw new BadRequestException("El correo ya está registrado");
         }
@@ -86,8 +90,11 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public UserDto update(UUID id, UpdateUserDto dto, String currentUserEmail, String clientIp) {
-        User user = userRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Usuario", id));
+    public UserDto update(UUID id, UpdateUserDto dto) {
+        String currentUserEmail = requestContext.getCurrentUserEmail();
+        String clientIp = requestContext.getClientIp();
+        User user = userRepository.findByIdWithAuthority(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario", id));
         if (dto.getEmail() != null && !dto.getEmail().equals(user.getEmail())) {
             if (userRepository.existsByEmail(dto.getEmail())) {
                 throw new BadRequestException("El correo ya está registrado");
@@ -102,7 +109,20 @@ public class UserServiceImpl implements UserService {
         }
         if (dto.getActive() != null) user.setActive(dto.getActive());
         User savedUser = userRepository.save(user);
-        authorityRepository.findByUser_Id(id).ifPresent(auth -> {
+
+        boolean updatesCredentials =
+                (dto.getUsername() != null && !dto.getUsername().isBlank())
+                        || (dto.getPassword() != null && !dto.getPassword().isBlank());
+
+        Optional<Authority> authorityOpt = authorityRepository.findByUser_Id(id);
+        if (authorityOpt.isEmpty()) {
+            if (updatesCredentials) {
+                throw new BadRequestException(
+                        "El usuario no tiene credenciales asociadas; no se puede actualizar username ni contraseña"
+                );
+            }
+        } else {
+            Authority auth = authorityOpt.get();
             if (dto.getUsername() != null && !dto.getUsername().isBlank()) {
                 authorityRepository.findByUsernameIgnoreCase(dto.getUsername()).ifPresent(other -> {
                     if (!other.getUser().getId().equals(id)) {
@@ -116,7 +136,7 @@ public class UserServiceImpl implements UserService {
                 auth.setPasswordHash(passwordEncoder.encode(dto.getPassword()));
             }
             authorityRepository.save(auth);
-        });
+        }
         UserDto result = toDto(savedUser);
         if (currentUserEmail != null && !currentUserEmail.isBlank()) {
             userRepository.findByEmail(currentUserEmail).ifPresent(actor ->

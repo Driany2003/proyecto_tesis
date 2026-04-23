@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 import psycopg2
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (
     accuracy_score,
     auc,

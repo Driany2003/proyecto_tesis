@@ -11,11 +11,6 @@ router = APIRouter(prefix="/model", tags=["Model"])
 
 @router.post("/predict", response_model=PredictResponse)
 async def predict_endpoint(req: PredictRequest):
-    """
-    Ejecuta el modelo probabilístico de detección de Parkinson.
-    Recibe features acústicas + NLP + datos clínicos.
-    Devuelve: probabilidad, IC 95%, banda de riesgo, top features.
-    """
     logger.info("Predicción: session=%s", req.session_id)
     return await predict(
         session_id=req.session_id,

@@ -2,20 +2,13 @@ package com.parkinson.backend.util;
 
 import jakarta.servlet.http.HttpServletRequest;
 
-/**
- * Utilidad para obtener la IP del cliente (considerando proxies y load balancers).
- */
 public final class WebUtils {
 
     private static final String X_FORWARDED_FOR = "X-Forwarded-For";
     private static final String X_REAL_IP = "X-Real-IP";
 
-    private WebUtils() {
-    }
+    private WebUtils() {}
 
-    /**
-     * Obtiene la IP del cliente desde la petición (X-Forwarded-For, X-Real-IP o getRemoteAddr).
-     */
     public static String getClientIp(HttpServletRequest request) {
         if (request == null) {
             return null;

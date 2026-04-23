@@ -2,13 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConversationQuestion } from '@/types/recording'
 import type { PresentationMode } from '@/types/recording'
 
-/** Elige la voz en español que suene más natural (persona, no máquina) */
 function getPreferredSpanishVoice(): SpeechSynthesisVoice | null {
   if (typeof window === 'undefined' || !window.speechSynthesis) return null
   const voices = window.speechSynthesis.getVoices()
   const esVoices = voices.filter((v) => v.lang === 'es-ES' || v.lang === 'es-MX' || v.lang.startsWith('es'))
   if (esVoices.length === 0) return null
-  // Preferir voces que suelen sonar más naturales (Google, Microsoft, nombres que no sean "robot")
   const preferred = esVoices.find(
     (v) =>
       /google|microsoft|natural|premium|helena|sabina|paulina|monica|jorge|daniel/i.test(v.name) ||

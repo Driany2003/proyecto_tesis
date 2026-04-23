@@ -1,5 +1,6 @@
 package com.parkinson.backend.service.impl;
 
+import com.parkinson.backend.context.RequestContext;
 import com.parkinson.backend.model.dto.request.LoginRequestDto;
 import com.parkinson.backend.model.dto.response.LoginResponseDto;
 import com.parkinson.backend.model.dto.response.UserDto;
@@ -27,10 +28,12 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuditLogService auditLogService;
+    private final RequestContext requestContext;
 
     @Override
     @Transactional
-    public LoginResponseDto login(LoginRequestDto request, String clientIp) {
+    public LoginResponseDto login(LoginRequestDto request) {
+        String clientIp = requestContext.getClientIp();
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
         if (!Boolean.TRUE.equals(user.getActive())) {
@@ -45,10 +48,8 @@ public class AuthServiceImpl implements AuthService {
         authorityRepository.save(authority);
         auditLogService.log(user, "LOGIN", "auth", null, "SUCCESS", clientIp, "Inicio de sesión");
         String token = jwtService.generateToken(user.getEmail());
-        UserDto userDto = toDto(user, authority.getUsername());
         return LoginResponseDto.builder()
                 .message("Login exitoso")
-                .user(userDto)
                 .token(token)
                 .build();
     }
@@ -61,14 +62,6 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.findByEmail(email)
                 .flatMap(user -> authorityRepository.findByUser_Id(user.getId())
                         .map(auth -> toDto(user, auth.getUsername())));
-    }
-
-    @Override
-    public Optional<User> getCurrentUserEntity(String email) {
-        if (email == null || email.isBlank()) {
-            return Optional.empty();
-        }
-        return userRepository.findByEmail(email);
     }
 
     private static UserDto toDto(User u, String username) {

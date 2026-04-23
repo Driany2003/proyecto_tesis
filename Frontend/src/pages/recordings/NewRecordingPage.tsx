@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getPatient, getPatients } from '@/api/patients'
 import { uploadRecording } from '@/api/recordings'
 import { DEFAULT_QUESTIONS } from '@/constants/conversationQuestions'
@@ -10,15 +10,21 @@ import { IconUsers } from '@/components/icons/SidebarIcons'
 
 export function NewRecordingPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { id: paramId } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const patientId = paramId ?? searchParams.get('patientId')
-  const [message, setMessage] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [selectedPatientId, setSelectedPatientId] = useState<string>('')
 
-  const { data: patient } = useQuery({
+  const {
+    data: patient,
+    isError: isPatientError,
+    error: patientError,
+    refetch: refetchPatient,
+    isFetching: isPatientFetching,
+  } = useQuery({
     queryKey: ['patient', patientId],
     queryFn: () => getPatient(patientId!),
     enabled: !!patientId,
@@ -32,14 +38,13 @@ export function NewRecordingPage() {
 
   const handleRecordingComplete = async (blob: Blob, durationSeconds: number) => {
     if (!patientId) return
-    setMessage(null)
     setUploadError(null)
     setIsUploading(true)
     try {
-      const res = await uploadRecording(patientId, blob, durationSeconds)
-      setMessage(
-        `Grabación de ${durationSeconds} s enviada correctamente. Sesión de análisis: ${res.sessionId}. ${res.message}`
-      )
+      await uploadRecording(patientId, blob, durationSeconds)
+      await queryClient.invalidateQueries({ queryKey: ['recordings', patientId] })
+      await queryClient.invalidateQueries({ queryKey: ['patient', patientId] })
+      navigate(`/patients/${patientId}#analisis`, { replace: true })
     } catch (e: unknown) {
       if (e instanceof Error) {
         setUploadError(e.message || 'Error al subir la grabación')
@@ -61,10 +66,32 @@ export function NewRecordingPage() {
           patient
             ? `Paciente: ${patient.fullName}`
             : patientId
-              ? 'Cargando paciente…'
+              ? isPatientError
+                ? 'No se pudo cargar el paciente'
+                : 'Cargando paciente…'
               : 'Seleccione un paciente para iniciar la grabación'
         }
       />
+
+      {patientId && isPatientError && (
+        <SectionCardSimple className="mb-6 border-red-200/80 bg-red-50/80 dark:border-red-800/60 dark:bg-red-950/30">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-medium text-red-800 dark:text-red-100">
+              {patientError instanceof Error
+                ? patientError.message
+                : 'Error al cargar los datos del paciente.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchPatient()}
+              disabled={isPatientFetching}
+              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:bg-red-900/40 dark:text-red-100 dark:hover:bg-red-900/60"
+            >
+              {isPatientFetching ? 'Reintentando…' : 'Reintentar'}
+            </button>
+          </div>
+        </SectionCardSimple>
+      )}
 
       {!patientId && patients.length > 0 && (
         <SectionCard
@@ -165,11 +192,6 @@ export function NewRecordingPage() {
       {uploadError && (
         <SectionCardSimple className="mt-6 border-red-200/80 bg-red-50/80 dark:border-red-800/60 dark:bg-red-950/30">
           <p className="text-sm font-medium text-red-800 dark:text-red-100">{uploadError}</p>
-        </SectionCardSimple>
-      )}
-      {message && (
-        <SectionCardSimple className="mt-6 border-sky-200/80 bg-sky-50/80 dark:border-sky-800/60 dark:bg-sky-950/30">
-          <p className="text-sm font-medium text-sky-800 dark:text-sky-100">{message}</p>
         </SectionCardSimple>
       )}
     </div>

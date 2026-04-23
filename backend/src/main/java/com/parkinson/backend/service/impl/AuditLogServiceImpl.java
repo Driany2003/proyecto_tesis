@@ -9,12 +9,15 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,9 +43,25 @@ public class AuditLogServiceImpl implements AuditLogService {
         auditLogRepository.save(log);
     }
 
+    private static final int MAX_PAGE_SIZE = 500;
+
+    private static Instant toStartOfDay(LocalDate date) {
+        return date.atStartOfDay(ZoneOffset.UTC).toInstant();
+    }
+
+    private static Instant toEndOfDay(LocalDate date) {
+        return date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
+    }
+
     @Override
     @Transactional(readOnly = true)
-    public Page<AuditLogDto> findFiltered(Instant fromDate, Instant toDate, String action, String result, Pageable pageable) {
+    public Page<AuditLogDto> findFiltered(LocalDate fromDate, LocalDate toDate, String action, String result) {
+        Instant from = fromDate != null ? toStartOfDay(fromDate) : null;
+        Instant to   = toDate   != null ? toEndOfDay(toDate)     : null;
+        return findFiltered(from, to, action, result, PageRequest.of(0, MAX_PAGE_SIZE));
+    }
+
+    private Page<AuditLogDto> findFiltered(Instant fromDate, Instant toDate, String action, String result, Pageable pageable) {
         Specification<AuditLog> spec = (root, query, cb) -> {
             root.fetch("user", JoinType.LEFT);
             List<Predicate> predicates = new ArrayList<>();
@@ -66,8 +85,10 @@ public class AuditLogServiceImpl implements AuditLogService {
     }
 
     @Override
-    public byte[] exportCsv(Instant fromDate, Instant toDate, String action, String result) {
-        Page<AuditLogDto> page = findFiltered(fromDate, toDate, action, result, Pageable.unpaged());
+    public byte[] exportCsv(LocalDate fromDate, LocalDate toDate, String action, String result) {
+        Instant from = fromDate != null ? toStartOfDay(fromDate) : null;
+        Instant to   = toDate   != null ? toEndOfDay(toDate)     : null;
+        Page<AuditLogDto> page = findFiltered(from, to, action, result, Pageable.unpaged());
         StringBuilder sb = new StringBuilder();
         sb.append("timestamp,userName,action,resource,resourceId,result,ip,details\n");
         for (AuditLogDto d : page.getContent()) {

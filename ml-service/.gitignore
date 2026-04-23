@@ -10,4 +10,5 @@ models/*.joblib
 models/*.pkl
 models/*.h5
 !models/.gitkeep
+evidence/
 /tmp/

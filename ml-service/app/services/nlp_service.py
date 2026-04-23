@@ -8,7 +8,7 @@ import librosa
 from app.config import settings
 from app.core.exceptions import TranscriptionError
 from app.schemas.nlp import NLPMetrics, NLPResponse
-from app.services.audio_service import cleanup_audio, download_audio, prepare_audio_file
+from app.services.audio_service import cleanup_audio, download_audio, maybe_enhance_for_ml, prepare_audio_file
 
 logger = logging.getLogger("ml-service.nlp")
 
@@ -27,7 +27,6 @@ def get_whisper_model():
 
 
 def compute_nlp_metrics(transcript: str, duration_sec: float) -> NLPMetrics:
-    """Calcula métricas lingüísticas a partir de la transcripción."""
     clean = transcript.strip().lower()
     words = re.findall(r"\b\w+\b", clean)
     word_count = len(words)
@@ -42,7 +41,6 @@ def compute_nlp_metrics(transcript: str, duration_sec: float) -> NLPMetrics:
 
     filler_count = sum(1 for w in words if w in FILLERS_ES)
 
-    # Estimación de pause_ratio basada en densidad de palabras
     expected_wpm = 150.0
     expected_words = (duration_sec / 60) * expected_wpm
     pause_ratio = max(0.0, 1.0 - (word_count / expected_words)) if expected_words > 0 else 0.0
@@ -62,12 +60,13 @@ def compute_nlp_metrics(transcript: str, duration_sec: float) -> NLPMetrics:
 async def transcribe_and_analyze(
     session_id: str, patient_id: str, audio_uri: str
 ) -> NLPResponse:
-    """Pipeline: descarga audio → Whisper → métricas NLP."""
     audio_path = await download_audio(audio_uri)
     paths_to_delete: list[Path] = [audio_path]
 
     try:
         work_path, paths_to_delete = prepare_audio_file(audio_path)
+        work_path, extra_paths = maybe_enhance_for_ml(work_path)
+        paths_to_delete.extend(extra_paths)
         model = get_whisper_model()
 
         y, sr = librosa.load(str(work_path), sr=16000)

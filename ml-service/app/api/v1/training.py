@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks
 from app.schemas.training import AddSampleRequest, AddSampleResponse, RetrainResponse
 from app.services.acoustic_service import analyze_acoustic
 from app.services.training_service import (
-    DB_CONFIG,
+    get_db_config,
     increment_sample_counter,
     retrain,
 )
@@ -17,11 +17,6 @@ router = APIRouter(prefix="/training", tags=["Training"])
 
 @router.post("/add-sample", response_model=AddSampleResponse)
 async def add_training_sample(req: AddSampleRequest, background_tasks: BackgroundTasks):
-    """
-    Agrega una muestra etiquetada al dataset de entrenamiento.
-    Extrae features acústicas del audio, guarda en BD,
-    y dispara re-entrenamiento automático si se alcanza el umbral.
-    """
     logger.info("Nueva muestra: label=%s, patient=%s", req.label, req.patient_ref)
 
     result = await analyze_acoustic(
@@ -30,7 +25,7 @@ async def add_training_sample(req: AddSampleRequest, background_tasks: Backgroun
         audio_uri=req.audio_uri,
     )
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**get_db_config())
     cur = conn.cursor()
     cur.execute(
         """
@@ -80,10 +75,6 @@ async def add_training_sample(req: AddSampleRequest, background_tasks: Backgroun
 
 @router.post("/retrain", response_model=RetrainResponse)
 async def retrain_model():
-    """
-    Dispara manualmente el re-entrenamiento del modelo
-    con todos los datos disponibles en training_samples.
-    """
     logger.info("Re-entrenamiento manual solicitado")
     metrics = await retrain()
     return RetrainResponse(**metrics)
@@ -91,8 +82,7 @@ async def retrain_model():
 
 @router.get("/stats")
 async def training_stats():
-    """Estadísticas del dataset de entrenamiento."""
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(**get_db_config())
     cur = conn.cursor()
 
     cur.execute("SELECT COUNT(*) FROM training_samples")
