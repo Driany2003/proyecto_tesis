@@ -16,6 +16,14 @@ export function RecordingSessionsPanel({ patientId }: { patientId: string }) {
     queryFn: () => listRecordings(patientId),
     staleTime: 20_000,
     refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const list = query.state.data ?? []
+      const hasProcessing = list.some(
+        (r) => r.status === 'processing' || r.status === 'pending'
+      )
+      return hasProcessing ? 5_000 : false
+    },
+    refetchIntervalInBackground: false,
   })
 
   const total = recordings.length

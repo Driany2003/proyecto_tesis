@@ -19,10 +19,22 @@ export function SessionDetailContent({ patientId, recordingId }: Props) {
     queryFn: () => getRecording(patientId, recordingId),
     enabled: !!recordingId,
     staleTime: 30_000,
+    refetchInterval: (query) => {
+      const data = query.state.data
+      const isProcessing = data && (data.status === 'processing' || data.status === 'pending')
+      return isProcessing ? 5_000 : false
+    },
+    refetchIntervalInBackground: false,
   })
 
   const r: RecordingListItem | undefined = detailQuery.data
   const processing = r && (r.status === 'processing' || r.status === 'pending')
+
+  useEffect(() => {
+    if (r && r.status !== 'processing' && r.status !== 'pending') {
+      queryClient.invalidateQueries({ queryKey: ['recordings', patientId] })
+    }
+  }, [r?.status, patientId, queryClient, r])
 
   const [considerations, setConsiderations] = useState('')
   const [annotations, setAnnotations] = useState('')
@@ -151,8 +163,8 @@ export function SessionDetailContent({ patientId, recordingId }: Props) {
         <div className="flex gap-3 rounded-lg border border-sky-200/90 bg-sky-50/90 px-3 py-2.5 dark:border-sky-800/60 dark:bg-sky-950/35">
           <span className="mt-0.5 h-2 w-2 shrink-0 animate-pulse rounded-full bg-sky-500" aria-hidden />
           <p className="text-sm leading-relaxed text-sky-950 dark:text-sky-100">
-            <strong>En análisis.</strong> Cuando termine, aquí aparecerán la probabilidad y los gráficos. Actualice la
-            página o vuelva más tarde.
+            <strong>En análisis.</strong> Esta vista se actualiza automáticamente cuando el pipeline termine
+            (la probabilidad y los gráficos aparecerán solos en unos segundos).
           </p>
         </div>
       )}
