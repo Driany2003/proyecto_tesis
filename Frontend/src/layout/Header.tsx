@@ -1,4 +1,5 @@
 import { Link, useLocation, useParams } from 'react-router-dom'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '@/auth/AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
@@ -94,6 +95,7 @@ function Breadcrumbs() {
 export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
   const { logout } = useAuth()
   const { theme, setTheme } = useTheme()
+  const [showNotifTooltip, setShowNotifTooltip] = useState(false)
 
   return (
     <header className="flex h-14 shrink-0 items-center gap-3 border-b border-slate-200 bg-card px-4 dark:border-slate-700">
@@ -145,13 +147,21 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
         </button>
       </div>
 
-      <button
-        type="button"
-        className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-accent hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-        aria-label="Notificaciones"
-      >
-        <IconBell className="h-5 w-5" />
-      </button>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => { setShowNotifTooltip(true); setTimeout(() => setShowNotifTooltip(false), 2000) }}
+          className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-accent hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          aria-label="Notificaciones"
+        >
+          <IconBell className="h-5 w-5" />
+        </button>
+        {showNotifTooltip && (
+          <div className="absolute right-0 top-11 z-50 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-lg dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            Próximamente
+          </div>
+        )}
+      </div>
 
       <button
         type="button"

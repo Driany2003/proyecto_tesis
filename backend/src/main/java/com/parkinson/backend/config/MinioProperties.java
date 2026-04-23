@@ -9,6 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app.minio")
 public class MinioProperties {
     private String endpoint = "http://127.0.0.1:9000";
+    /** URL pública para presigned URLs (n8n u otros servicios en Docker las necesitan accesibles) */
+    private String publicEndpoint;
     private String accessKey;
     private String secretKey;
     private String bucket = "parkinsonvoicesdata";

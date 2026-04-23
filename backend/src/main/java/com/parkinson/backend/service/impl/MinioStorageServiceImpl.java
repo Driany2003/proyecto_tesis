@@ -7,7 +7,7 @@ import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.http.Method;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -16,11 +16,21 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
-@RequiredArgsConstructor
 public class MinioStorageServiceImpl implements MinioStorageService {
 
     private final MinioClient minioClient;
+    private final MinioClient minioPublicClient;
     private final MinioProperties minioProperties;
+
+    public MinioStorageServiceImpl(
+            MinioClient minioClient,
+            @Qualifier("minioPublicClient") MinioClient minioPublicClient,
+            MinioProperties minioProperties
+    ) {
+        this.minioClient = minioClient;
+        this.minioPublicClient = minioPublicClient;
+        this.minioProperties = minioProperties;
+    }
 
     @Override
     public String buildObjectKey(UUID patientId, UUID recordingId, String extension) {
@@ -48,7 +58,8 @@ public class MinioStorageServiceImpl implements MinioStorageService {
     @Override
     public String presignedGetUrl(String objectKey) {
         try {
-            return minioClient.getPresignedObjectUrl(
+            // Usa el cliente público para que la URL generada sea accesible desde n8n/Docker
+            return minioPublicClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(minioProperties.getBucket())

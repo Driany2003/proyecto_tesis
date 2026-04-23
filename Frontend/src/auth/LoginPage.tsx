@@ -87,6 +87,7 @@ export function LoginPage() {
   const {
     register,
     handleSubmit,
+    resetField,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -100,14 +101,9 @@ export function LoginPage() {
       await login(data.email, data.password)
       setSuccess('Login exitoso')
       setTimeout(() => navigate(from, { replace: true }), 600)
-    } catch (e: unknown) {
-      const err = e as { message?: string; response?: { data?: { error?: string; message?: string } } }
-      setError(
-        err.response?.data?.error ||
-          err.response?.data?.message ||
-          (err.message && err.message !== 'Network Error' ? err.message : null) ||
-          'Credenciales incorrectas'
-      )
+    } catch {
+      setError('Login fallido')
+      resetField('password')
     }
   }
 

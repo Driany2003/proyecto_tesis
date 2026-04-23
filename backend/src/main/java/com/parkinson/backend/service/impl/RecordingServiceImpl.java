@@ -164,13 +164,19 @@ public class RecordingServiceImpl implements RecordingService {
     @Transactional
     public void updateRecordingFromPipelineWebhook(String headerSecret, RecordingStatusWebhookRequest body) {
         String configured = webhookProperties.getRecordingSecret();
+        log.info("[Webhook] Recibido. recordingId={} status={} secretRecibido='{}' secretConfigurado='{}'",
+                body.recordingId(), body.status(),
+                headerSecret != null ? headerSecret : "(null)",
+                configured != null ? configured : "(null)");
         if (configured == null || configured.isBlank()) {
+            log.warn("[Webhook] app.webhook.recording-secret no configurado → 503");
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "Webhook de grabaciones no configurado (app.webhook.recording-secret)"
             );
         }
         if (headerSecret == null || !configured.equals(headerSecret)) {
+            log.warn("[Webhook] Secreto inválido. Esperado='{}' Recibido='{}'", configured, headerSecret);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Secreto de webhook inválido");
         }
 
