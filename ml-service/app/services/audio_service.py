@@ -15,9 +15,11 @@ from app.schemas.audio import AudioValidateResponse
 
 logger = logging.getLogger("ml-service.audio")
 
-SUPPORTED_FORMATS = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".webm"}
+SUPPORTED_FORMATS = {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".mp4", ".aac", ".caf", ".webm"}
 
-_CONVERT_WITH_FFMPEG = frozenset({".webm"})
+# Formatos que libsndfile NO sabe leer directamente y deben pasarse por ffmpeg.
+# iOS/macOS suele grabar en .m4a (AAC en contenedor MP4); también .caf y .mp4.
+_CONVERT_WITH_FFMPEG = frozenset({".webm", ".m4a", ".mp4", ".aac", ".caf"})
 
 
 def prepare_audio_file(local_path: Path) -> tuple[Path, list[Path]]:
@@ -58,7 +60,7 @@ def prepare_audio_file(local_path: Path) -> tuple[Path, list[Path]]:
     except FileNotFoundError as exc:
         conversion_failed = True
         raise AudioValidationError(
-            "ffmpeg no está instalado; hace falta para convertir WebM a WAV."
+            f"ffmpeg no está instalado; hace falta para convertir {suffix} a WAV."
         ) from exc
     except subprocess.TimeoutExpired as exc:
         conversion_failed = True
