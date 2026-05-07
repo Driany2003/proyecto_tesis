@@ -26,6 +26,14 @@ pandas>=2.2.0
 minio>=7.2.0
 psycopg2-binary>=2.9.0
 
+# Datasets externos (NeuroVoz / Italian Parkinson)
+huggingface_hub>=0.24.0
+
+# Features extendidas (Camino A): complejidad no lineal sobre voz
+# (DFA implementado a mano en extended_features_service.py para evitar
+#  el bug de nolds 0.5.x/0.6.x en Python 3.9)
+antropy>=0.1.6
+
 # Visualization
 matplotlib>=3.9.0
 seaborn>=0.13.0

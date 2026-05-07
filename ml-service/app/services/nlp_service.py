@@ -1,4 +1,5 @@
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -21,7 +22,12 @@ def get_whisper_model():
     global _whisper_model
     if _whisper_model is None:
         logger.info("Cargando modelo Whisper '%s'...", settings.whisper_model_size)
-        _whisper_model = whisper.load_model(settings.whisper_model_size)
+        cache_dir = os.environ.get("ML_WHISPER_CACHE_DIR")
+        kwargs = {}
+        if cache_dir:
+            Path(cache_dir).mkdir(parents=True, exist_ok=True)
+            kwargs["download_root"] = cache_dir
+        _whisper_model = whisper.load_model(settings.whisper_model_size, **kwargs)
         logger.info("Modelo Whisper cargado")
     return _whisper_model
 
