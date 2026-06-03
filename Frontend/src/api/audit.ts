@@ -15,7 +15,7 @@ export async function getAuditLogs(filters?: AuditLogFilters): Promise<AuditLogE
 
 export async function exportAuditLogs(
   filters?: AuditLogFilters,
-  format: 'csv' | 'json' = 'csv'
+  _format: 'csv' | 'json' = 'csv'
 ): Promise<Blob> {
   const params: Record<string, string | undefined> = {}
   if (filters?.fromDate) params.fromDate = filters.fromDate
