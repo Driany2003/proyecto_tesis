@@ -31,3 +31,4 @@ backend/target/
 *.njsproj
 *.sln
 *.sw?
+ml-service/.cache/
