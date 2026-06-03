@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/audit-logs")
@@ -25,9 +26,12 @@ public class AuditLogController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             @RequestParam(required = false) String action,
-            @RequestParam(required = false) String result
+            @RequestParam(required = false) String result,
+            @RequestParam(required = false) String userId,
+            @RequestParam(required = false) String resource
     ) {
-        Page<AuditLogDto> page = auditLogService.findFiltered(fromDate, toDate, action, result);
+        Page<AuditLogDto> page = auditLogService.findFiltered(
+                fromDate, toDate, action, result, userId != null ? UUID.fromString(userId) : null, resource);
         return page.getContent();
     }
 

@@ -36,7 +36,7 @@ def extract_acoustic_features(audio_path: Path) -> AcousticFeatures:
     harmonicity = call(snd, "To Harmonicity (cc)", 0.01, 75.0, 0.1, 1.0)
     hnr = call(harmonicity, "Get mean", 0.0, 0.0)
 
-    nhr = 1.0 / (10 ** (hnr / 10)) if hnr > 0 else 1.0
+    nhr = 1.0 / max(1e-10, 10 ** (hnr / 10)) if hnr > 0 else 1.0
 
     logger.info(
         "Features extraídas: F0=%.1fHz, jitter=%.4f, shimmer=%.4f, HNR=%.1fdB",

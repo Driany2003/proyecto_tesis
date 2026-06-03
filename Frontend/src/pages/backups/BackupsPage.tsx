@@ -42,7 +42,7 @@ export function BackupsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Configuración"
         title="Respaldo de datos"
         subtitle="Historial de respaldos y restauración"
       />

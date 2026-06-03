@@ -3,7 +3,10 @@ package com.parkinson.backend.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parkinson.backend.config.N8nProperties;
+import com.parkinson.backend.context.RequestContext;
+import com.parkinson.backend.model.entity.User;
 import com.parkinson.backend.repository.RecordingRepository;
+import com.parkinson.backend.service.AuditLogService;
 import com.parkinson.backend.service.N8nTriggerService;
 import com.parkinson.backend.util.Strings;
 import lombok.extern.slf4j.Slf4j;
@@ -34,17 +37,23 @@ public class N8nTriggerServiceImpl implements N8nTriggerService {
     private final ObjectMapper objectMapper;
     private final RecordingRepository recordingRepository;
     private final N8nTriggerService self;
+    private final AuditLogService auditLogService;
+    private final RequestContext requestContext;
 
     public N8nTriggerServiceImpl(N8nProperties n8nProperties,
                                  RestTemplate restTemplate,
                                  ObjectMapper objectMapper,
                                  RecordingRepository recordingRepository,
-                                 @Lazy N8nTriggerService self) {
+                                 @Lazy N8nTriggerService self,
+                                 AuditLogService auditLogService,
+                                 RequestContext requestContext) {
         this.n8nProperties = n8nProperties;
         this.restTemplate = restTemplate;
         this.objectMapper = objectMapper;
         this.recordingRepository = recordingRepository;
         this.self = self;
+        this.auditLogService = auditLogService;
+        this.requestContext = requestContext;
     }
 
     @Override
@@ -81,6 +90,9 @@ public class N8nTriggerServiceImpl implements N8nTriggerService {
             log.info("Disparando n8n webhook: session_id={}", sessionId);
             var response = restTemplate.postForEntity(url, entity, String.class);
             log.info("n8n webhook respondió HTTP {} para session_id={}", response.getStatusCode().value(), sessionId);
+            auditLogService.log(null, "PIPELINE_TRIGGER", "recording", recordingId.toString(),
+                    "SUCCESS", null,
+                    "Pipeline n8n disparado: session=" + sessionId);
         } catch (HttpStatusCodeException e) {
             handleHttpError(recordingId, sessionId, e);
         } catch (Exception e) {
@@ -105,6 +117,17 @@ public class N8nTriggerServiceImpl implements N8nTriggerService {
                 rec.setProcessedAt(Instant.now());
                 rec.setErrorMessage(Strings.truncate(reason, MAX_ERROR_LENGTH));
                 recordingRepository.save(rec);
+
+                User createdBy = rec.getCreatedBy();
+                if (createdBy != null) {
+                    auditLogService.log(createdBy, "PIPELINE_FAILED", "recording",
+                            recordingId.toString(), "ERROR", null,
+                            "Pipeline n8n fallido: " + Strings.truncate(reason, 300));
+                } else {
+                    auditLogService.log(null, "PIPELINE_FAILED", "recording",
+                            recordingId.toString(), "ERROR", "n8n-system",
+                            "Pipeline n8n fallido: " + Strings.truncate(reason, 300));
+                }
                 log.info("Grabación {} marcada como failed: {}", recordingId, reason);
             });
         } catch (Exception e) {
@@ -134,10 +157,17 @@ public class N8nTriggerServiceImpl implements N8nTriggerService {
         if (body != null && body.contains("\"ok\":false")) {
             log.warn("n8n respondió {} con ok=false (pipeline en rama de error). session_id={}. Body: {}",
                     status, sessionId, Strings.truncateForLog(body, MAX_ERROR_LENGTH));
+            auditLogService.log(null, "PIPELINE_TRIGGER", "recording", recordingId.toString(),
+                    "ERROR", null,
+                    "n8n respondió ok=false: " + Strings.truncate(body, 300));
+            self.markRecordingFailed(recordingId, "Pipeline n8n retornó ok=false");
             return;
         }
         log.error("Error HTTP llamando a n8n webhook para session_id={}: {} {}",
                 sessionId, status, Strings.truncateForLog(body, MAX_ERROR_LENGTH));
+        auditLogService.log(null, "PIPELINE_TRIGGER", "recording", recordingId.toString(),
+                "ERROR", null,
+                "n8n respondió HTTP " + status);
         self.markRecordingFailed(recordingId, "n8n respondió HTTP " + status);
     }
 }

@@ -9,7 +9,7 @@ export function Dashboard() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Principal"
         title="Inicio"
         subtitle={`Bienvenido, ${user?.name}. Conectado como ${roleLabel(user?.role ?? '')}.`}
       />

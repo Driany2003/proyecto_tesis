@@ -29,22 +29,16 @@ export function RecordingSessionsPanel({ patientId }: { patientId: string }) {
   const total = recordings.length
   const totalPages = Math.max(1, Math.ceil(total / RECORDING_PAGE_SIZE))
 
-  useEffect(() => {
-    setPage(1)
-    setSelectedId(null)
-  }, [patientId])
-
-  useEffect(() => {
-    if (location.hash === '#analisis') {
-      setPage(1)
-    }
-  }, [location.hash, patientId])
-
-  useEffect(() => {
-    setPage((p) => Math.min(p, totalPages))
-  }, [totalPages])
-
   const safePage = Math.min(page, totalPages)
+
+  useEffect(() => {
+    setPage((prev) => {
+      if (location.hash === '#analisis') return 1
+      return Math.min(prev, totalPages)
+    })
+    setSelectedId(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId])
   const start = (safePage - 1) * RECORDING_PAGE_SIZE
   const pageItems = useMemo(
     () => recordings.slice(start, start + RECORDING_PAGE_SIZE),

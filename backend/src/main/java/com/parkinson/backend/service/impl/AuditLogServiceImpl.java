@@ -20,6 +20,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -55,15 +56,18 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<AuditLogDto> findFiltered(LocalDate fromDate, LocalDate toDate, String action, String result) {
+    public Page<AuditLogDto> findFiltered(LocalDate fromDate, LocalDate toDate, String action, String result,
+                                          UUID userId, String resource) {
         Instant from = fromDate != null ? toStartOfDay(fromDate) : null;
         Instant to   = toDate   != null ? toEndOfDay(toDate)     : null;
-        return findFiltered(from, to, action, result, PageRequest.of(0, MAX_PAGE_SIZE));
+        return findFiltered(from, to, action, result, userId, resource, PageRequest.of(0, MAX_PAGE_SIZE));
     }
 
-    private Page<AuditLogDto> findFiltered(Instant fromDate, Instant toDate, String action, String result, Pageable pageable) {
+    private Page<AuditLogDto> findFiltered(Instant fromDate, Instant toDate, String action, String result,
+                                           UUID userId, String resource, Pageable pageable) {
         Specification<AuditLog> spec = (root, query, cb) -> {
             root.fetch("user", JoinType.LEFT);
+            root.fetch("user").fetch("role", JoinType.LEFT);
             List<Predicate> predicates = new ArrayList<>();
             if (fromDate != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("timestamp"), fromDate));
@@ -78,6 +82,12 @@ public class AuditLogServiceImpl implements AuditLogService {
             if (result != null && !result.isBlank()) {
                 predicates.add(cb.equal(root.get("result"), result));
             }
+            if (userId != null) {
+                predicates.add(cb.equal(root.get("user").get("id"), userId));
+            }
+            if (resource != null && !resource.isBlank()) {
+                predicates.add(cb.like(cb.lower(root.get("resource")), "%" + resource.trim().toLowerCase() + "%"));
+            }
             query.orderBy(cb.desc(root.get("timestamp")));
             return predicates.isEmpty() ? cb.conjunction() : cb.and(predicates.toArray(new Predicate[0]));
         };
@@ -88,18 +98,29 @@ public class AuditLogServiceImpl implements AuditLogService {
     public byte[] exportCsv(LocalDate fromDate, LocalDate toDate, String action, String result) {
         Instant from = fromDate != null ? toStartOfDay(fromDate) : null;
         Instant to   = toDate   != null ? toEndOfDay(toDate)     : null;
-        Page<AuditLogDto> page = findFiltered(from, to, action, result, Pageable.unpaged());
         StringBuilder sb = new StringBuilder();
-        sb.append("timestamp,userName,action,resource,resourceId,result,ip,details\n");
-        for (AuditLogDto d : page.getContent()) {
-            sb.append(d.getTimestamp().toString()).append(",")
-                    .append(escapeCsv(d.getUserName())).append(",")
-                    .append(escapeCsv(d.getAction())).append(",")
-                    .append(escapeCsv(d.getResource())).append(",")
-                    .append(escapeCsv(d.getResourceId())).append(",")
-                    .append(escapeCsv(d.getResult())).append(",")
-                    .append(escapeCsv(d.getIp())).append(",")
-                    .append(escapeCsv(d.getDetails())).append("\n");
+        sb.append("timestamp,userId,userName,userEmail,userRole,action,resource,resourceId,result,ip,details\n");
+        int pageSize = 500;
+        int page = 0;
+        boolean hasMore = true;
+        while (hasMore) {
+            Page<AuditLogDto> resultPage = findFiltered(from, to, action, result, null, null, PageRequest.of(page, pageSize));
+            for (AuditLogDto d : resultPage.getContent()) {
+                sb.append(d.getTimestamp().toString()).append(",")
+                        .append(d.getUserId() != null ? d.getUserId().toString() : "").append(",")
+                        .append(escapeCsv(d.getUserName())).append(",")
+                        .append(escapeCsv(d.getUserEmail())).append(",")
+                        .append(escapeCsv(d.getUserRole())).append(",")
+                        .append(escapeCsv(d.getAction())).append(",")
+                        .append(escapeCsv(d.getResource())).append(",")
+                        .append(escapeCsv(d.getResourceId())).append(",")
+                        .append(escapeCsv(d.getResult())).append(",")
+                        .append(escapeCsv(d.getIp())).append(",")
+                        .append(escapeCsv(d.getDetails())).append("\n");
+            }
+            hasMore = resultPage.hasNext();
+            page++;
+            if (page > 40) break;
         }
         return sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
@@ -108,7 +129,11 @@ public class AuditLogServiceImpl implements AuditLogService {
         return AuditLogDto.builder()
                 .id(a.getId())
                 .timestamp(a.getTimestamp())
+                .userId(a.getUser() != null ? a.getUser().getId() : null)
                 .userName(a.getUser() != null ? a.getUser().getName() : null)
+                .userEmail(a.getUser() != null ? a.getUser().getEmail() : null)
+                .userRole(a.getUser() != null && a.getUser().getRole() != null
+                        ? a.getUser().getRole().getName() : null)
                 .action(a.getAction())
                 .resource(a.getResource())
                 .resourceId(a.getResourceId())

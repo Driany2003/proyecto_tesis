@@ -13,7 +13,10 @@ import java.util.UUID;
 public class AuditLogDto {
     private UUID id;
     private Instant timestamp;
+    private UUID userId;
     private String userName;
+    private String userEmail;
+    private String userRole;
     private String action;
     private String resource;
     private String resourceId;

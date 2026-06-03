@@ -7,14 +7,15 @@ import { DEFAULT_QUESTIONS } from '@/constants/conversationQuestions'
 import { ConversationGuide } from '@/components/recording/ConversationGuide'
 import { PageHeader, SectionCard, SectionCardSimple, SectionDivider } from '@/layout/PageSection'
 import { IconUsers } from '@/components/icons/SidebarIcons'
+import { useToast } from '@/contexts/ToastContext'
 
 export function NewRecordingPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const toast = useToast()
   const { id: paramId } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const patientId = paramId ?? searchParams.get('patientId')
-  const [uploadError, setUploadError] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [selectedPatientId, setSelectedPatientId] = useState<string>('')
 
@@ -38,7 +39,6 @@ export function NewRecordingPage() {
 
   const handleRecordingComplete = async (blob: Blob, durationSeconds: number) => {
     if (!patientId) return
-    setUploadError(null)
     setIsUploading(true)
     try {
       await uploadRecording(patientId, blob, durationSeconds)
@@ -46,11 +46,8 @@ export function NewRecordingPage() {
       await queryClient.invalidateQueries({ queryKey: ['patient', patientId] })
       navigate(`/patients/${patientId}#analisis`, { replace: true })
     } catch (e: unknown) {
-      if (e instanceof Error) {
-        setUploadError(e.message || 'Error al subir la grabación')
-      } else {
-        setUploadError('No se pudo subir la grabación. Intente de nuevo.')
-      }
+      const msg = e instanceof Error ? e.message : 'No se pudo subir la grabación. Intente de nuevo.'
+      toast.error(msg)
     } finally {
       setIsUploading(false)
     }
@@ -60,7 +57,7 @@ export function NewRecordingPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Principal"
         title="Nueva grabación"
         subtitle={
           patient
@@ -187,12 +184,6 @@ export function NewRecordingPage() {
             disabled={isUploading}
           />
         </>
-      )}
-
-      {uploadError && (
-        <SectionCardSimple className="mt-6 border-red-200/80 bg-red-50/80 dark:border-red-800/60 dark:bg-red-950/30">
-          <p className="text-sm font-medium text-red-800 dark:text-red-100">{uploadError}</p>
-        </SectionCardSimple>
       )}
     </div>
   )

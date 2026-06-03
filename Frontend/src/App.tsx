@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/auth/AuthContext'
 import { ThemeProvider } from '@/contexts/ThemeContext'
+import { ToastProvider } from '@/contexts/ToastContext'
 import { ProtectedRoute } from '@/auth/ProtectedRoute'
+import { PermissionGuard } from '@/auth/PermissionGuard'
 import { LoginPage } from '@/auth/LoginPage'
 import { DashboardLayout } from '@/layout/DashboardLayout'
 import { Dashboard } from '@/pages/Dashboard'
@@ -12,7 +14,9 @@ import { NewRecordingPage } from '@/pages/recordings/NewRecordingPage'
 import { AuditLogsPage } from '@/pages/audit/AuditLogsPage'
 import { BackupsPage } from '@/pages/backups/BackupsPage'
 import { RiskThresholdsPage } from '@/pages/settings/RiskThresholdsPage'
+import { PermissionSettingsPage } from '@/pages/settings/PermissionSettingsPage'
 import { UserManagementPage } from '@/pages/users/UserManagementPage'
+import { CollectionPage } from '@/pages/CollectionPage'
 import { ROLES } from '@/constants/roles'
 
 const queryClient = new QueryClient()
@@ -22,6 +26,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <ThemeProvider>
+          <ToastProvider>
           <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -29,7 +34,9 @@ function App() {
               path="/"
               element={
                 <ProtectedRoute>
-                  <DashboardLayout />
+                  <PermissionGuard>
+                    <DashboardLayout />
+                  </PermissionGuard>
                 </ProtectedRoute>
               }
             >
@@ -83,6 +90,14 @@ function App() {
                 }
               />
               <Route
+                path="permisos"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
+                    <PermissionSettingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="backups"
                 element={
                   <ProtectedRoute allowedRoles={[ROLES.ADMIN]}>
@@ -98,10 +113,19 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="recoleccion"
+                element={
+                  <ProtectedRoute allowedRoles={[ROLES.MEDICO, ROLES.ADMIN]}>
+                    <CollectionPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </AuthProvider>
+          </ToastProvider>
         </ThemeProvider>
       </BrowserRouter>
     </QueryClientProvider>

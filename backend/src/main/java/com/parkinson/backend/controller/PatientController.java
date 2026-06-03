@@ -3,6 +3,7 @@ package com.parkinson.backend.controller;
 import com.parkinson.backend.model.dto.request.CreatePatientDto;
 import com.parkinson.backend.model.dto.response.PatientDto;
 import com.parkinson.backend.model.dto.response.PatientListItemDto;
+import com.parkinson.backend.model.dto.response.PatientWithRecordingsDto;
 import com.parkinson.backend.service.PatientService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -44,5 +45,17 @@ public class PatientController {
             @Valid @RequestBody CreatePatientDto dto
     ) {
         return ResponseEntity.ok(patientService.update(id, dto));
+    }
+
+    @GetMapping("/by-dni/{dni}")
+    public ResponseEntity<PatientDto> findByDni(@PathVariable String dni) {
+        return patientService.findByDni(dni)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/with-stored-recordings")
+    public List<PatientWithRecordingsDto> findWithStoredRecordings() {
+        return patientService.findPatientsWithStoredRecordingsFull();
     }
 }

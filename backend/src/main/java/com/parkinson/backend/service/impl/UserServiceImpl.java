@@ -74,8 +74,6 @@ public class UserServiceImpl implements UserService {
                 .username(username)
                 .passwordHash(encodedPassword)
                 .role(user.getRole())
-                .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
                 .user(user)
                 .build();
         authorityRepository.save(authority);
@@ -139,8 +137,20 @@ public class UserServiceImpl implements UserService {
         }
         UserDto result = toDto(savedUser);
         if (currentUserEmail != null && !currentUserEmail.isBlank()) {
+            final String details;
+            StringBuilder sb = new StringBuilder("Usuario actualizado");
+            if (dto.getActive() != null) {
+                sb.append(" | estado=").append(dto.getActive() ? "ACTIVADO" : "DESACTIVADO");
+            }
+            if (dto.getRole() != null) {
+                sb.append(" | rol=").append(dto.getRole());
+            }
+            if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+                sb.append(" | contraseña cambiada");
+            }
+            details = sb.toString();
             userRepository.findByEmail(currentUserEmail).ifPresent(actor ->
-                    auditLogService.log(actor, "UPDATE", "user", id.toString(), "SUCCESS", clientIp, "Usuario actualizado")
+                    auditLogService.log(actor, "UPDATE", "user", id.toString(), "SUCCESS", clientIp, details)
             );
         }
         return result;

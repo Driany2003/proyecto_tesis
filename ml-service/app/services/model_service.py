@@ -1,4 +1,5 @@
 import logging
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -7,18 +8,16 @@ import joblib
 from app.config import settings
 from app.core.exceptions import ModelNotFoundError
 from app.schemas.model import FeatureImportance, PredictResponse
+from app.services.feature_constants import DEFAULT_FEATURE_ORDER
 
 logger = logging.getLogger("ml-service.model")
 
 _model = None
 _scaler = None
 _model_features: list[str] = []
+_model_lock = threading.Lock()
 
-FEATURE_ORDER = [
-    "f0_mean", "f0_std", "jitter", "shimmer", "hnr", "nhr",
-    "ttr", "words_per_min", "pause_ratio", "filler_count",
-    "age", "symptom_onset_months",
-]
+FEATURE_ORDER = DEFAULT_FEATURE_ORDER
 
 RISK_BANDS = [
     (0.3, "low"),
@@ -36,30 +35,31 @@ def get_risk_band(probability: float) -> str:
 
 def load_model():
     global _model, _scaler, _model_features
-    model_path = Path(settings.model_path)
+    with _model_lock:
+        model_path = Path(settings.model_path)
 
-    if not model_path.exists():
-        logger.warning("Modelo no encontrado en %s", model_path)
-        return None
+        if not model_path.exists():
+            logger.warning("Modelo no encontrado en %s", model_path)
+            return None
 
-    bundle = joblib.load(model_path)
+        bundle = joblib.load(model_path)
 
-    if isinstance(bundle, dict):
-        _model = bundle.get("model")
-        _scaler = bundle.get("scaler")
-        _model_features = bundle.get("features", FEATURE_ORDER)
-    else:
-        _model = bundle
-        _scaler = None
-        _model_features = FEATURE_ORDER
+        if isinstance(bundle, dict):
+            _model = bundle.get("model")
+            _scaler = bundle.get("scaler")
+            _model_features = bundle.get("features", FEATURE_ORDER)
+        else:
+            _model = bundle
+            _scaler = None
+            _model_features = FEATURE_ORDER
 
-    logger.info(
-        "Modelo cargado: %s (scaler=%s, features=%d)",
-        type(_model).__name__,
-        type(_scaler).__name__ if _scaler is not None else "ninguno",
-        len(_model_features),
-    )
-    return _model
+        logger.info(
+            "Modelo cargado: %s (scaler=%s, features=%d)",
+            type(_model).__name__,
+            type(_scaler).__name__ if _scaler is not None else "ninguno",
+            len(_model_features),
+        )
+        return _model
 
 
 def build_feature_vector(acoustic: dict, nlp: dict, clinical: dict) -> np.ndarray:
@@ -139,24 +139,30 @@ async def predict(
     global _model
 
     if _model is None:
-        _model = load_model()
+        load_model()
 
     if _model is None:
         raise ModelNotFoundError()
 
+    with _model_lock:
+        model_snapshot = _model
+        scaler_snapshot = _scaler
+        features_used = _model_features if _model_features else FEATURE_ORDER
+
     X = build_feature_vector(acoustic, nlp, clinical)
     features_used = _model_features if _model_features else FEATURE_ORDER
 
-    if _scaler is not None:
+    if scaler_snapshot is not None:
         try:
-            X = _scaler.transform(X)
+            X = scaler_snapshot.transform(X)
         except Exception as exc:
             logger.error("Fallo aplicando scaler en inferencia: %s", exc)
             raise
 
-    p_parkinson, ci_low, ci_high = compute_confidence_interval(_model, X)
-    risk_band = get_risk_band(p_parkinson)
-    top_features = get_feature_importances(_model, features_used)
+    with _model_lock:
+        p_parkinson, ci_low, ci_high = compute_confidence_interval(model_snapshot, X)
+        risk_band = get_risk_band(p_parkinson)
+        top_features = get_feature_importances(model_snapshot, features_used)
 
     logger.info(
         "Predicción: session=%s, p=%.4f [%.4f, %.4f], risk=%s",

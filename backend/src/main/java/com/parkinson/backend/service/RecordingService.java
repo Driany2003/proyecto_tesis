@@ -16,7 +16,8 @@ public interface RecordingService {
     RecordingUploadResponse createRecording(UUID patientId,
                                             MultipartFile file,
                                             int durationSeconds,
-                                            String userEmail);
+                                            String userEmail,
+                                            boolean triggerPipeline);
 
     List<RecordingSummaryDto> listByPatient(UUID patientId);
 

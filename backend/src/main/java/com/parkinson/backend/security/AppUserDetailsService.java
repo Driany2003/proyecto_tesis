@@ -23,7 +23,7 @@ public class AppUserDetailsService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailWithRole(email)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + email));
         if (!Boolean.TRUE.equals(user.getActive())) {
             throw new UsernameNotFoundException("Usuario inactivo");

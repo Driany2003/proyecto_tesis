@@ -6,6 +6,7 @@ import com.parkinson.backend.model.entity.BackupRecord;
 import com.parkinson.backend.repository.BackupRecordRepository;
 import com.parkinson.backend.service.BackupRecordService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BackupRecordServiceImpl implements BackupRecordService {
 
     private final BackupRecordRepository backupRecordRepository;
@@ -29,6 +31,12 @@ public class BackupRecordServiceImpl implements BackupRecordService {
         if (!backupRecordRepository.existsById(backupId)) {
             throw new ResourceNotFoundException("Respaldo", backupId);
         }
+        log.warn("Restauración de backup {} solicitada pero no implementada. "
+                + "Utilice pg_restore manualmente. Esta funcionalidad está planificada para versión futura.", backupId);
+        throw new UnsupportedOperationException(
+                "La restauración automática aún no está implementada. "
+                + "Consulte la documentación para restauración manual vía pg_restore."
+        );
     }
 
     private BackupRecordDto toDto(BackupRecord b) {

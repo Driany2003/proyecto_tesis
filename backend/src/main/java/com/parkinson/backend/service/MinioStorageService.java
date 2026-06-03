@@ -8,6 +8,8 @@ public interface MinioStorageService {
 
     String buildObjectKey(UUID patientId, UUID recordingId, String extension);
 
+    String buildObjectKey(String prefix, UUID patientId, UUID recordingId, String extension);
+
     void upload(String objectKey, MultipartFile file);
 
     String presignedGetUrl(String objectKey);

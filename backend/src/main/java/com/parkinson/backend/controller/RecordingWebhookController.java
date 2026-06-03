@@ -4,6 +4,7 @@ import com.parkinson.backend.model.dto.request.RecordingStatusWebhookRequest;
 import com.parkinson.backend.service.RecordingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +14,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/webhooks")
 @RequiredArgsConstructor
+@Slf4j
 public class RecordingWebhookController {
 
     private final RecordingService recordingService;
@@ -35,3 +37,4 @@ public class RecordingWebhookController {
         return ResponseEntity.noContent().build();
     }
 }
+

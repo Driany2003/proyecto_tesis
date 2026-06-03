@@ -61,6 +61,6 @@ export async function getMe(): Promise<AuthUser | null> {
     email: data.email ?? '',
     role: mapRole(String(data.role)),
     active: data.active ?? true,
-    token: localStorage.getItem('token') ?? '',
+    token: '',
   }
 }

@@ -34,8 +34,13 @@ public class MinioStorageServiceImpl implements MinioStorageService {
 
     @Override
     public String buildObjectKey(UUID patientId, UUID recordingId, String extension) {
+        return buildObjectKey("app-recordings", patientId, recordingId, extension);
+    }
+
+    @Override
+    public String buildObjectKey(String prefix, UUID patientId, UUID recordingId, String extension) {
         String ext = extension.startsWith(".") ? extension : "." + extension;
-        return String.format("app-recordings/%s/%s%s", patientId, recordingId, ext);
+        return String.format("%s/%s/%s%s", prefix, patientId, recordingId, ext);
     }
 
     @Override

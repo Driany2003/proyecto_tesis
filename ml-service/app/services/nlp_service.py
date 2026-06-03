@@ -47,7 +47,7 @@ def compute_nlp_metrics(transcript: str, duration_sec: float) -> NLPMetrics:
 
     filler_count = sum(1 for w in words if w in FILLERS_ES)
 
-    expected_wpm = 150.0
+    expected_wpm = settings.nlp_expected_wpm
     expected_words = (duration_sec / 60) * expected_wpm
     pause_ratio = max(0.0, 1.0 - (word_count / expected_words)) if expected_words > 0 else 0.0
 

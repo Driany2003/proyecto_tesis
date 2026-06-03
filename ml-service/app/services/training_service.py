@@ -1,25 +1,45 @@
 import logging
+import threading
 from pathlib import Path
+from typing import Optional
 
 import joblib
 import numpy as np
 import psycopg2
+import psycopg2.pool
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score, recall_score, precision_score, f1_score, confusion_matrix
-from sklearn.model_selection import cross_val_predict, StratifiedKFold
+from sklearn.model_selection import cross_val_predict, GroupKFold, StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
 from app.config import settings
+from app.services.feature_constants import ACOUSTIC_FEATURES
 
 logger = logging.getLogger("ml-service.training")
 
-FEATURE_COLS = ["f0_mean", "jitter", "shimmer", "hnr", "nhr"]
+FEATURE_COLS = ACOUSTIC_FEATURES
 RETRAIN_THRESHOLD = 10
 
 _retrain_counter = 0
+_retrain_lock = threading.Lock()
+_db_pool: Optional[psycopg2.pool.SimpleConnectionPool] = None
+
+
+def _get_connection():
+    global _db_pool
+    if _db_pool is None:
+        cfg = get_db_config()
+        _db_pool = psycopg2.pool.SimpleConnectionPool(1, 5, **cfg)
+    return _db_pool.getconn()
+
+
+def _return_connection(conn):
+    global _db_pool
+    if _db_pool is not None:
+        _db_pool.putconn(conn)
 
 
 def get_db_config() -> dict:
@@ -46,22 +66,29 @@ def get_db_config() -> dict:
     }
 
 
-def load_training_data() -> tuple[np.ndarray, np.ndarray, list[str]]:
-    conn = psycopg2.connect(**get_db_config())
+def load_training_data() -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
+    conn = _get_connection()
     try:
         df = pd.read_sql("SELECT * FROM training_samples", conn)
     finally:
-        conn.close()
+        _return_connection(conn)
 
     available = [c for c in FEATURE_COLS if c in df.columns and df[c].notna().sum() > 0]
     X = df[available].fillna(0).values
     y = df["label"].astype(int).values
 
-    logger.info("Datos cargados: %d muestras, %d features", len(X), len(available))
-    return X, y, available
+    if "subject_id" in df.columns and df["subject_id"].notna().any():
+        groups = df["subject_id"].fillna(df["patient_ref"] if "patient_ref" in df.columns else None).fillna(df["source"]).values
+    elif "patient_ref" in df.columns:
+        groups = df["patient_ref"].fillna(df["source"]).values
+    else:
+        groups = df.index.astype(str).values
+
+    logger.info("Datos cargados: %d muestras, %d features, %d sujetos", len(X), len(available), len(np.unique(groups)))
+    return X, y, groups, available
 
 
-def train_model(X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> dict:
+def train_model(X: np.ndarray, y: np.ndarray, groups: np.ndarray, feature_names: list[str]) -> dict:
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
@@ -69,11 +96,12 @@ def train_model(X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> dict:
     min_count = int(class_counts.min()) if class_counts.size > 0 else 0
     if min_count < 2:
         raise ValueError(
-            "Cada clase necesita al menos 2 muestras para validación cruzada estratificada;"
+            "Cada clase necesita al menos 2 muestras para validación cruzada;"
             f" distribución actual: {dict(enumerate(class_counts.tolist()))}"
         )
-    n_splits = max(2, min(5, min_count))
-    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
+    n_unique_groups = len(np.unique(groups))
+    n_splits = max(2, min(5, n_unique_groups, min_count))
+    cv = GroupKFold(n_splits=n_splits)
 
     rf = RandomForestClassifier(n_estimators=200, max_depth=10, random_state=42, class_weight="balanced")
     xgb = XGBClassifier(
@@ -88,9 +116,9 @@ def train_model(X: np.ndarray, y: np.ndarray, feature_names: list[str]) -> dict:
 
     for name, model in [("RandomForest", rf), ("XGBoost", xgb)]:
         try:
-            y_proba = cross_val_predict(model, X_scaled, y, cv=cv, method="predict_proba")[:, 1]
+            y_proba = cross_val_predict(model, X_scaled, y, cv=cv, groups=groups, method="predict_proba")[:, 1]
             auc_val = roc_auc_score(y, y_proba)
-            logger.info("%s AUC=%.4f", name, auc_val)
+            logger.info("%s AUC=%.4f (GroupKFold, n_splits=%d)", name, auc_val, n_splits)
             if auc_val > best_auc:
                 best_auc = auc_val
                 best_name = name
@@ -151,16 +179,17 @@ def save_and_reload(bundle: dict) -> None:
 
 async def retrain() -> dict:
     logger.info("Iniciando re-entrenamiento...")
-    X, y, features = load_training_data()
+    X, y, groups, features = load_training_data()
 
     if len(X) < 10:
         raise ValueError(f"Insuficientes muestras ({len(X)}). Mínimo: 10.")
 
-    result = train_model(X, y, features)
+    result = train_model(X, y, groups, features)
     save_and_reload(result["bundle"])
 
     global _retrain_counter
-    _retrain_counter = 0
+    with _retrain_lock:
+        _retrain_counter = 0
 
     logger.info("Re-entrenamiento completado: %s", result["metrics"])
     return result["metrics"]
@@ -168,5 +197,6 @@ async def retrain() -> dict:
 
 def increment_sample_counter() -> bool:
     global _retrain_counter
-    _retrain_counter += 1
-    return _retrain_counter >= RETRAIN_THRESHOLD
+    with _retrain_lock:
+        _retrain_counter += 1
+        return _retrain_counter >= RETRAIN_THRESHOLD

@@ -1,18 +1,29 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 interface PageHeaderProps {
   title: string
   subtitle?: string
   action?: ReactNode
+  section?: string
 }
 
-export function PageHeader({ title, subtitle, action }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, action, section }: PageHeaderProps) {
   return (
     <div
       className="section-enter flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
       style={{ marginBottom: 'var(--section-gap)' }}
     >
       <div>
+        <nav className="mb-1 flex items-center gap-1.5 text-xs text-slate-400">
+          <Link to="/" className="hover:text-sky-500 transition-colors">Inicio</Link>
+          {section && (
+            <>
+              <span>/</span>
+              <span className="text-slate-500 font-medium">{section}</span>
+            </>
+          )}
+        </nav>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
           {title}
         </h1>

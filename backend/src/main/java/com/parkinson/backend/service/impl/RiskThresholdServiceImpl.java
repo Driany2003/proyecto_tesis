@@ -1,5 +1,6 @@
 package com.parkinson.backend.service.impl;
 
+import com.parkinson.backend.context.RequestContext;
 import com.parkinson.backend.model.dto.response.RiskThresholdsDto;
 import com.parkinson.backend.model.dto.response.ThresholdHistoryDto;
 import com.parkinson.backend.model.entity.RiskThreshold;
@@ -8,7 +9,9 @@ import com.parkinson.backend.model.entity.User;
 import com.parkinson.backend.repository.RiskThresholdRepository;
 import com.parkinson.backend.repository.ThresholdHistoryRepository;
 import com.parkinson.backend.repository.UserRepository;
+import com.parkinson.backend.service.AuditLogService;
 import com.parkinson.backend.service.RiskThresholdService;
+import com.parkinson.backend.util.Strings;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,8 @@ public class RiskThresholdServiceImpl implements RiskThresholdService {
     private final RiskThresholdRepository riskThresholdRepository;
     private final ThresholdHistoryRepository thresholdHistoryRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
+    private final RequestContext requestContext;
 
     @Override
     public RiskThresholdsDto getCurrent() {
@@ -60,8 +65,15 @@ public class RiskThresholdServiceImpl implements RiskThresholdService {
                         .nextModerateMax(entity.getModerateMax())
                         .nextHighMin(entity.getHighMin())
                         .nextAlertThreshold(entity.getAlertThreshold())
+                        .reason(dto.getReason())
                         .build();
                 thresholdHistoryRepository.save(history);
+                if (dto.getReason() != null && !dto.getReason().isBlank()) {
+                    auditLogService.log(user, "THRESHOLD_SAVE", "risk_threshold",
+                            entity.getId().toString(), "SUCCESS",
+                            requestContext.getClientIp(),
+                            "Umbrales actualizados: " + Strings.truncate(dto.getReason(), 300));
+                }
             }
         }
         return toDto(entity);

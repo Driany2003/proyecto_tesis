@@ -309,3 +309,17 @@ textarea.input-base {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
 }
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}

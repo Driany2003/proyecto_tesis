@@ -31,10 +31,11 @@ export function SessionDetailContent({ patientId, recordingId }: Props) {
   const processing = r && (r.status === 'processing' || r.status === 'pending')
 
   useEffect(() => {
-    if (r && r.status !== 'processing' && r.status !== 'pending') {
+    const currentStatus = r?.status
+    if (currentStatus && currentStatus !== 'processing' && currentStatus !== 'pending') {
       queryClient.invalidateQueries({ queryKey: ['recordings', patientId] })
     }
-  }, [r?.status, patientId, queryClient, r])
+  }, [r?.status, patientId, queryClient])
 
   const [considerations, setConsiderations] = useState('')
   const [annotations, setAnnotations] = useState('')

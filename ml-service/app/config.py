@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     audio_noisereduce_stationary: bool = False
     audio_noisereduce_prop_decrease: float = 0.75
 
+    nlp_expected_wpm: float = 150.0
+
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8080"]
 
     db_host: str = ""

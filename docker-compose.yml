@@ -1,0 +1,126 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: parkinson-db
+    environment:
+      POSTGRES_DB: tesis_parkinson
+      POSTGRES_USER: parkinson
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U parkinson -d tesis_parkinson"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: parkinson-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASSWORD:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: parkinson-n8n
+    environment:
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: tesis_parkinson
+      DB_POSTGRESDB_USER: parkinson
+      DB_POSTGRESDB_PASSWORD: ${DB_PASSWORD:-changeme}
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8ndata:/home/node/.n8n
+      - ./ml-service/n8n-workflow-ready.json:/workflow.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ml-service:
+    build:
+      context: ./ml-service
+      dockerfile: Dockerfile
+    container_name: parkinson-ml
+    environment:
+      ML_DEBUG: "false"
+      ML_WHISPER_MODEL_SIZE: base
+      ML_AUDIO_TMP_DIR: /tmp/parkinson_audio
+      ML_MODEL_PATH: /app/models/parkinson_model.joblib
+      ML_DB_HOST: postgres
+      ML_DB_PORT: 5432
+      ML_DB_NAME: tesis_parkinson
+      ML_DB_USER: parkinson
+      ML_DB_PASSWORD: ${DB_PASSWORD:-changeme}
+      ML_CORS_ORIGINS: '["http://localhost:5173","http://localhost:8080"]'
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./ml-service/models:/app/models:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: parkinson-backend
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/tesis_parkinson
+      SPRING_DATASOURCE_USERNAME: parkinson
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-prod-secret-256-bit-change-me}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: http://localhost:9000
+      MINIO_ACCESS_KEY: ${MINIO_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_PASSWORD:-minioadmin}
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/parkinson/analyze
+      WEBHOOK_RECORDING_SECRET: ${WEBHOOK_SECRET:-changeme}
+      CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:3000
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    container_name: parkinson-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  miniodata:
+  n8ndata:

@@ -19,7 +19,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />
+    return <Navigate to="/login?expired=true" state={{ from: location }} replace />
   }
 
   if (allowedRoles && allowedRoles.length > 0 && !hasRole(...allowedRoles)) {

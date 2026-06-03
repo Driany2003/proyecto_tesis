@@ -19,7 +19,7 @@ export function PatientListPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Principal"
         title="Pacientes"
         subtitle={patients.length ? `${patients.length} paciente${patients.length !== 1 ? 's' : ''} registrado${patients.length !== 1 ? 's' : ''}` : 'Buscar o registrar pacientes'}
         action={

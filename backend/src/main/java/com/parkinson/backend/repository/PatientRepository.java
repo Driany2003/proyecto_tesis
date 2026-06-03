@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -30,4 +31,18 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
             ORDER BY p.fullName ASC
             """)
     List<PatientListItemDto> searchSummary(@Param("term") String term);
+
+    Optional<Patient> findByDni(String dni);
+
+    @Query("""
+            SELECT new com.parkinson.backend.model.dto.response.PatientListItemDto(
+                p.id, p.fullName, p.age, p.gender, p.dni, p.createdAt, p.updatedAt)
+            FROM Patient p
+            WHERE EXISTS (
+                SELECT 1 FROM Recording r
+                WHERE r.patient.id = p.id AND r.status = 'stored'
+            )
+            ORDER BY p.fullName ASC
+            """)
+    List<PatientListItemDto> findPatientsWithStoredRecordings();
 }

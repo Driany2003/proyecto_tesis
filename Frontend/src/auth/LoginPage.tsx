@@ -1,10 +1,11 @@
-import { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from './AuthContext'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useToast } from '@/contexts/ToastContext'
 
 const schema = z.object({
   email: z.string().email('Correo electrónico inválido'),
@@ -75,14 +76,27 @@ function IconEyeOff({ className }: { className?: string }) {
 }
 
 export function LoginPage() {
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const { login } = useAuth()
+  const { login, isAuthenticated } = useAuth()
   const { theme, setTheme } = useTheme()
+  const toast = useToast()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const isExpired = searchParams.get('expired') === 'true'
+  const reason = isExpired ? (sessionStorage.getItem('logout_reason') || 'Tu sesión expiró o fue cerrada. Ingresa nuevamente para continuar.') : null
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/'
+
+  useEffect(() => {
+    if (isAuthenticated) navigate(from, { replace: true })
+  }, [isAuthenticated, navigate, from])
+  
+  useEffect(() => {
+    if (isExpired) {
+      sessionStorage.removeItem('logout_reason')
+      window.history.replaceState(null, '', '/login')
+    }
+  }, [isExpired])
 
   const {
     register,
@@ -95,14 +109,10 @@ export function LoginPage() {
   })
 
   const onSubmit = async (data: FormData) => {
-    setError(null)
-    setSuccess(null)
     try {
       await login(data.email, data.password)
-      setSuccess('Login exitoso')
-      setTimeout(() => navigate(from, { replace: true }), 600)
     } catch {
-      setError('Login fallido')
+      toast.error('Credenciales inválidas')
       resetField('password')
     }
   }
@@ -159,25 +169,15 @@ export function LoginPage() {
           </button>
         </div>
 
-        <div className="w-full max-w-[420px] -translate-y-5">
-          <div className="mb-6 flex justify-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-sky-500 text-2xl font-bold text-white shadow-lg dark:bg-sky-600">
-              P
-            </div>
-          </div>
-          <p className="mb-6 text-center text-lg font-semibold text-slate-800 dark:text-slate-100">
+        <div className="w-full max-w-[420px]">
+          <p className="mb-6 text-center text-2xl font-bold text-slate-800 dark:text-slate-100">
             Inicio de sesión
           </p>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-            {success && (
-              <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 dark:border-green-800 dark:bg-green-950/50 dark:text-green-300">
-                {success}
-              </div>
-            )}
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
-                {error}
+            {isExpired && reason && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+                {reason}
               </div>
             )}
 

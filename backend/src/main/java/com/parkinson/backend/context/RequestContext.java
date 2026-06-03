@@ -21,8 +21,12 @@ public class RequestContext {
 
     public String getCurrentUserEmail() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() || auth.getPrincipal() == null) {
             return null;
+        }
+        if (auth.getPrincipal() instanceof org.springframework.security.core.userdetails.UserDetails userDetails) {
+            String name = userDetails.getUsername();
+            return (name == null || name.isBlank() || "anonymousUser".equals(name)) ? null : name;
         }
         String name = auth.getName();
         return (name == null || name.isBlank() || "anonymousUser".equals(name)) ? null : name;

@@ -1,3 +1,5 @@
+import { apiClient } from './client'
+
 interface RecordingUploadResponse {
   recordingId: string
   sessionId: string
@@ -34,53 +36,14 @@ export interface RecordingListItem extends RecordingSummary {
   audioUrlExpiresInMinutes?: number | null
 }
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
-
-function authHeaders(): HeadersInit {
-  const token = localStorage.getItem('token')
-  const h: HeadersInit = {}
-  if (token) h.Authorization = `Bearer ${token}`
-  return h
-}
-
-function parseJson<T>(text: string): T {
-  try {
-    return text ? (JSON.parse(text) as T) : ({} as T)
-  } catch {
-    return {} as T
-  }
-}
-
 export async function listRecordings(patientId: string): Promise<RecordingSummary[]> {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/recordings`, {
-    method: 'GET',
-    headers: authHeaders(),
-  })
-  const text = await res.text()
-  const data = parseJson<RecordingSummary[] | { error?: string }>(text)
-  if (!res.ok) {
-    const err = data as { error?: string }
-    throw Object.assign(new Error(err.error || text || res.statusText || 'Error al listar grabaciones'), {
-      response: { data, status: res.status },
-    })
-  }
-  return Array.isArray(data) ? data : []
+  const res = await apiClient.get<RecordingSummary[]>(`/patients/${patientId}/recordings`)
+  return Array.isArray(res.data) ? res.data : []
 }
 
 export async function getRecording(patientId: string, recordingId: string): Promise<RecordingListItem> {
-  const res = await fetch(`${API_BASE}/patients/${patientId}/recordings/${recordingId}`, {
-    method: 'GET',
-    headers: authHeaders(),
-  })
-  const text = await res.text()
-  const data = parseJson<RecordingListItem & { error?: string }>(text)
-  if (!res.ok) {
-    const err = data as { error?: string }
-    throw Object.assign(new Error(err.error || text || res.statusText || 'Error al cargar la grabación'), {
-      response: { data, status: res.status },
-    })
-  }
-  return data as RecordingListItem
+  const res = await apiClient.get<RecordingListItem>(`/patients/${patientId}/recordings/${recordingId}`)
+  return res.data
 }
 
 function extensionFromBlob(blob: Blob): string {
@@ -95,27 +58,21 @@ function extensionFromBlob(blob: Blob): string {
 export async function uploadRecording(
   patientId: string,
   blob: Blob,
-  durationSeconds: number
+  durationSeconds: number,
+  triggerPipeline = true
 ): Promise<RecordingUploadResponse> {
   const ext = extensionFromBlob(blob)
   const formData = new FormData()
   formData.append('file', blob, `recording.${ext}`)
   formData.append('durationSeconds', String(durationSeconds))
+  formData.append('triggerPipeline', String(triggerPipeline))
 
-  const res = await fetch(`${API_BASE}/patients/${patientId}/recordings`, {
-    method: 'POST',
-    headers: authHeaders(),
-    body: formData,
-  })
-
-  const text = await res.text()
-  const data = parseJson<RecordingUploadResponse & { error?: string }>(text)
-  if (!res.ok) {
-    throw Object.assign(new Error(data.error || text || res.statusText || 'Error al subir'), {
-      response: { data, status: res.status },
-    })
-  }
-  return data as RecordingUploadResponse
+  const res = await apiClient.post<RecordingUploadResponse>(
+    `/patients/${patientId}/recordings`,
+    formData,
+    { headers: { 'Content-Type': undefined } }
+  )
+  return res.data
 }
 
 export async function patchRecordingNotes(
@@ -127,21 +84,9 @@ export async function patchRecordingNotes(
     noteComplications: string
   }
 ): Promise<RecordingListItem> {
-  const res = await fetch(
-    `${API_BASE}/patients/${patientId}/recordings/${recordingId}/notes`,
-    {
-      method: 'PATCH',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }
+  const res = await apiClient.patch<RecordingListItem>(
+    `/patients/${patientId}/recordings/${recordingId}/notes`,
+    body
   )
-  const text = await res.text()
-  const data = parseJson<RecordingListItem & { error?: string }>(text)
-  if (!res.ok) {
-    const err = data as { error?: string }
-    throw Object.assign(new Error(err.error || text || res.statusText || 'Error al guardar notas'), {
-      response: { data, status: res.status },
-    })
-  }
-  return data as RecordingListItem
+  return res.data
 }

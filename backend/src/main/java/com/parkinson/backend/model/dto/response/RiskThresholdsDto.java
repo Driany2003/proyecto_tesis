@@ -14,4 +14,5 @@ public class RiskThresholdsDto {
     private Double highMin;
     private Double alertThreshold;
     private Double criticalThreshold;
+    private String reason;
 }

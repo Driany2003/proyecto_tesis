@@ -46,7 +46,7 @@ export function PatientDetailPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Principal"
         title={patient.fullName}
         subtitle={`DNI ${patient.dni} · ${patient.age} años`}
         action={

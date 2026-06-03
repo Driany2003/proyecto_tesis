@@ -22,6 +22,7 @@ const schema = z
     highMin: z.coerce.number().min(0).max(100),
     alertThreshold: z.coerce.number().min(0).max(100),
     criticalThreshold: z.union([z.coerce.number().min(0).max(100), z.literal('')]),
+    reason: z.string().max(500).optional(),
   })
   .refine((d) => d.lowMax <= d.moderateMin, {
     message: 'El máximo de bajo debe ser ≤ al mínimo de moderado (30 y 30 es válido en la frontera).',
@@ -76,6 +77,7 @@ export function RiskThresholdsPage() {
       highMin: DEFAULT_THRESHOLDS.highMin,
       alertThreshold: DEFAULT_THRESHOLDS.alertThreshold,
       criticalThreshold: DEFAULT_THRESHOLDS.criticalThreshold ?? '',
+      reason: '',
     },
   })
 
@@ -90,12 +92,12 @@ export function RiskThresholdsPage() {
         highMin: thresholds.highMin,
         alertThreshold: thresholds.alertThreshold,
         criticalThreshold: thresholds.criticalThreshold ?? '',
+        reason: '',
       })
     }
   }, [thresholds, reset])
 
   const onSubmit = (data: FormValues) => {
-    const reason = window.prompt('Justificación del cambio (opcional):')
     updateMutation.mutate({
       values: {
         lowMax: data.lowMax,
@@ -106,7 +108,7 @@ export function RiskThresholdsPage() {
         criticalThreshold:
           data.criticalThreshold === '' ? undefined : Number(data.criticalThreshold),
       },
-      reason: reason ?? undefined,
+      reason: data.reason?.trim() || undefined,
     })
   }
 
@@ -131,7 +133,7 @@ export function RiskThresholdsPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Configuración"
         title="Umbrales de riesgo"
         subtitle="Configuración de rangos para bajo, moderado y alto riesgo"
       />
@@ -215,6 +217,15 @@ export function RiskThresholdsPage() {
               placeholder="85"
               className="input-base"
               {...register('criticalThreshold')}
+            />
+          </div>
+          <div className="col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-slate-600">Justificación del cambio (opcional)</label>
+            <textarea
+              rows={2}
+              placeholder="Ej. Ajuste basado en nuevos datos de entrenamiento..."
+              className="input-base min-h-[60px] w-full resize-y"
+              {...register('reason')}
             />
           </div>
           <div className="col-span-2 flex flex-wrap gap-3 pt-2">

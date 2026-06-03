@@ -15,7 +15,10 @@ const createSchema = z.object({
   name: z.string().min(1, 'Nombre obligatorio'),
   email: z.string().email('Correo inválido'),
   username: z.string().max(100, 'Máximo 100 caracteres').optional(),
-  password: z.string().min(8, 'Mínimo 8 caracteres'),
+  password: z.string()
+    .min(8, 'Mínimo 8 caracteres')
+    .regex(/[A-Z]/, 'Debe contener al menos una mayúscula')
+    .regex(/[0-9]/, 'Debe contener al menos un número'),
   role: z.enum(ROLE_KEYS as unknown as [string, ...string[]]),
 })
 
@@ -26,7 +29,9 @@ const editSchema = z.object({
   password: z
     .string()
     .optional()
-    .refine((v) => !v || v.length >= 8, 'Mínimo 8 caracteres si indica contraseña'),
+    .refine((v) => !v || v.length >= 8, 'Mínimo 8 caracteres si indica contraseña')
+    .refine((v) => !v || /[A-Z]/.test(v), 'Debe contener al menos una mayúscula')
+    .refine((v) => !v || /[0-9]/.test(v), 'Debe contener al menos un número'),
   role: z.enum(ROLE_KEYS as unknown as [string, ...string[]]),
 })
 
@@ -138,7 +143,7 @@ export function UserManagementPage() {
 
   return (
     <div>
-      <PageHeader
+      <PageHeader section="Administración"
         title="Gestión de usuarios"
         subtitle={
           filteredUsers.length === users.length

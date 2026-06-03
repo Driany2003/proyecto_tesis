@@ -5,9 +5,12 @@ import com.parkinson.backend.model.entity.User;
 import org.springframework.data.domain.Page;
 
 import java.time.LocalDate;
+import java.util.UUID;
 
 public interface AuditLogService {
-    Page<AuditLogDto> findFiltered(LocalDate fromDate, LocalDate toDate, String action, String result);
+    Page<AuditLogDto> findFiltered(LocalDate fromDate, LocalDate toDate, String action, String result,
+                                   UUID userId, String resource);
+
     byte[] exportCsv(LocalDate fromDate, LocalDate toDate, String action, String result);
 
     void log(User user, String action, String resource, String resourceId, String result, String clientIp, String details);

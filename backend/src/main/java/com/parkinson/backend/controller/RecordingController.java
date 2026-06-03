@@ -50,10 +50,11 @@ public class RecordingController {
             @PathVariable UUID patientId,
             @RequestPart("file") MultipartFile file,
             @RequestParam("durationSeconds") int durationSeconds,
+            @RequestParam(defaultValue = "true") boolean triggerPipeline,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         String email = requireAuth(userDetails).getUsername();
-        RecordingUploadResponse body = recordingService.createRecording(patientId, file, durationSeconds, email);
+        RecordingUploadResponse body = recordingService.createRecording(patientId, file, durationSeconds, email, triggerPipeline);
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
 

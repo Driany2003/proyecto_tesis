@@ -34,19 +34,28 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public LoginResponseDto login(LoginRequestDto request) {
         String clientIp = requestContext.getClientIp();
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
+
+        User user = userRepository.findByEmailWithRole(request.getEmail()).orElse(null);
+        if (user == null) {
+            auditLogService.log(null, "LOGIN", "auth", null, "DENIED", clientIp,
+                    "Credenciales inválidas (email no encontrado: " + request.getEmail() + ")");
+            throw new BadCredentialsException("Credenciales inválidas");
+        }
         if (!Boolean.TRUE.equals(user.getActive())) {
+            auditLogService.log(user, "LOGIN", "auth", null, "DENIED", clientIp,
+                    "Usuario inactivo: " + user.getEmail());
             throw new BadCredentialsException("Usuario inactivo");
         }
-        var authority = authorityRepository.findByUser_Id(user.getId())
-                .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
-        if (!passwordEncoder.matches(request.getPassword(), authority.getPasswordHash())) {
+        var authority = authorityRepository.findByUser_Id(user.getId()).orElse(null);
+        if (authority == null || !passwordEncoder.matches(request.getPassword(), authority.getPasswordHash())) {
+            auditLogService.log(user, "LOGIN", "auth", null, "DENIED", clientIp,
+                    "Credenciales inválidas (contraseña incorrecta)");
             throw new BadCredentialsException("Credenciales inválidas");
         }
         authority.setLastLoginAt(Instant.now());
         authorityRepository.save(authority);
-        auditLogService.log(user, "LOGIN", "auth", null, "SUCCESS", clientIp, "Inicio de sesión");
+        auditLogService.log(user, "LOGIN", "auth", null, "SUCCESS", clientIp,
+                "Inicio de sesión exitoso");
         String token = jwtService.generateToken(user.getEmail());
         return LoginResponseDto.builder()
                 .message("Login exitoso")
@@ -56,11 +65,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<UserDto> getCurrentUser(String email) {
         if (email == null || email.isBlank()) {
             return Optional.empty();
         }
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailWithRole(email)
                 .flatMap(user -> authorityRepository.findByUser_Id(user.getId())
                         .map(auth -> toDto(user, auth.getUsername())));
     }

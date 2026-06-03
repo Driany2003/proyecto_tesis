@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.parkinson.backend.config.MinioProperties;
 import com.parkinson.backend.config.WebhookProperties;
+import com.parkinson.backend.context.RequestContext;
 import com.parkinson.backend.event.RecordingPipelineRequestedEvent;
 import com.parkinson.backend.exception.BadRequestException;
 import com.parkinson.backend.exception.ResourceNotFoundException;
@@ -21,6 +22,7 @@ import com.parkinson.backend.model.entity.User;
 import com.parkinson.backend.repository.PatientRepository;
 import com.parkinson.backend.repository.RecordingRepository;
 import com.parkinson.backend.repository.UserRepository;
+import com.parkinson.backend.service.AuditLogService;
 import com.parkinson.backend.service.MinioStorageService;
 import com.parkinson.backend.service.RecordingService;
 import com.parkinson.backend.util.Strings;
@@ -49,6 +51,12 @@ public class RecordingServiceImpl implements RecordingService {
     private static final int MAX_NOTE_LENGTH = 8000;
     private static final int MAX_ERROR_LENGTH = 2000;
 
+    private static final java.util.Set<String> ALLOWED_MIME_TYPES = java.util.Set.of(
+            "audio/webm", "audio/wav", "audio/wave", "audio/x-wav",
+            "audio/mpeg", "audio/mp4", "audio/ogg", "audio/m4a",
+            "audio/x-m4a", "audio/aac", "audio/flac", "audio/3gpp"
+    );
+
     private final PatientRepository patientRepository;
     private final RecordingRepository recordingRepository;
     private final UserRepository userRepository;
@@ -57,6 +65,8 @@ public class RecordingServiceImpl implements RecordingService {
     private final WebhookProperties webhookProperties;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogService auditLogService;
+    private final RequestContext requestContext;
 
     @Override
     @Transactional
@@ -64,10 +74,15 @@ public class RecordingServiceImpl implements RecordingService {
             UUID patientId,
             MultipartFile file,
             int durationSeconds,
-            String userEmail
+            String userEmail,
+            boolean triggerPipeline
     ) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("El archivo de audio es obligatorio");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !isAllowedAudioType(contentType)) {
+            throw new BadRequestException("Formato de audio no soportado: " + contentType + ". Use WebM, WAV, MP4, M4A, OGG o FLAC.");
         }
         if (durationSeconds < MIN_DURATION || durationSeconds > MAX_DURATION) {
             throw new BadRequestException("La duración debe estar entre " + MIN_DURATION + " y " + MAX_DURATION + " segundos");
@@ -76,43 +91,59 @@ public class RecordingServiceImpl implements RecordingService {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente", patientId));
 
-        UUID recordingId = UUID.randomUUID();
-        String ext = extensionFromFilename(file.getOriginalFilename());
-        String objectKey = minioStorageService.buildObjectKey(patientId, recordingId, ext);
-
-        minioStorageService.upload(objectKey, file);
-
         User createdBy = userRepository.findByEmail(userEmail).orElse(null);
 
         Recording recording = Recording.builder()
-                .id(recordingId)
                 .patient(patient)
                 .createdBy(createdBy)
                 .durationSeconds(durationSeconds)
-                .filePath(objectKey)
                 .status("processing")
                 .build();
+        recording = recordingRepository.save(recording);
+
+        String ext = extensionFromFilename(file.getOriginalFilename());
+        String prefix = triggerPipeline ? "app-recordings" : "training-data";
+        String objectKey = minioStorageService.buildObjectKey(prefix, patientId, recording.getId(), ext);
+        recording.setFilePath(objectKey);
         recordingRepository.save(recording);
 
-        String presignedUrl = minioStorageService.presignedGetUrl(objectKey);
-        String physicianId = createdBy != null ? createdBy.getId().toString() : null;
+        minioStorageService.upload(objectKey, file);
 
-        Map<String, Object> clinical = buildClinicalMap(patient);
+        if (triggerPipeline) {
+            String presignedUrl = minioStorageService.presignedGetUrl(objectKey);
+            String physicianId = createdBy != null ? createdBy.getId().toString() : null;
+            Map<String, Object> clinical = buildClinicalMap(patient);
 
-        eventPublisher.publishEvent(new RecordingPipelineRequestedEvent(
-                recordingId,
-                recordingId.toString(),
-                patientId.toString(),
-                presignedUrl,
-                physicianId,
-                clinical
-        ));
+            eventPublisher.publishEvent(new RecordingPipelineRequestedEvent(
+                    recording.getId(),
+                    recording.getId().toString(),
+                    patientId.toString(),
+                    presignedUrl,
+                    physicianId,
+                    clinical
+            ));
+            recording.setStatus("processing");
+        } else {
+            recording.setStatus("stored");
+        }
+        recordingRepository.save(recording);
+
+        if (createdBy != null) {
+            auditLogService.log(createdBy, "UPLOAD", "recording", recording.getId().toString(),
+                    "SUCCESS", requestContext.getClientIp(),
+                    "Grabación subida: paciente=" + patient.getFullName() + ", duración=" + durationSeconds + "s"
+                    + (triggerPipeline ? " [pipeline]" : " [solo almacenamiento]"));
+        }
+
+        String message = triggerPipeline
+                ? "Grabación recibida. El análisis se ejecuta en segundo plano (n8n)."
+                : "Grabación almacenada correctamente.";
 
         return new RecordingUploadResponse(
-                recordingId,
-                recordingId.toString(),
-                "processing",
-                "Grabación recibida. El análisis se ejecuta en segundo plano (n8n)."
+                recording.getId(),
+                recording.getId().toString(),
+                recording.getStatus(),
+                message
         );
     }
 
@@ -164,10 +195,9 @@ public class RecordingServiceImpl implements RecordingService {
     @Transactional
     public void updateRecordingFromPipelineWebhook(String headerSecret, RecordingStatusWebhookRequest body) {
         String configured = webhookProperties.getRecordingSecret();
-        log.info("[Webhook] Recibido. recordingId={} status={} secretRecibido='{}' secretConfigurado='{}'",
+        log.info("[Webhook] Recibido. recordingId={} status={} secretValido={}",
                 body.recordingId(), body.status(),
-                headerSecret != null ? headerSecret : "(null)",
-                configured != null ? configured : "(null)");
+                configured != null && configured.equals(headerSecret));
         if (configured == null || configured.isBlank()) {
             log.warn("[Webhook] app.webhook.recording-secret no configurado → 503");
             throw new ResponseStatusException(
@@ -203,6 +233,19 @@ public class RecordingServiceImpl implements RecordingService {
             recording.setChartsJson(null);
         }
         recordingRepository.save(recording);
+
+        User systemUser = recording.getCreatedBy();
+        String result = "completed".equals(st) ? "SUCCESS" : "ERROR";
+        String details = "completed".equals(st)
+                ? "Pipeline completado: p=" + body.pParkinson() + ", riesgo=" + body.riskBand()
+                : "Pipeline fallido: " + Strings.truncate(body.errorMessage(), 300);
+        if (systemUser != null) {
+            auditLogService.log(systemUser, "PIPELINE_RESULT", "recording",
+                    body.recordingId().toString(), result, null, details);
+        } else {
+            auditLogService.log(null, "PIPELINE_RESULT", "recording",
+                    body.recordingId().toString(), result, "n8n-callback", details);
+        }
     }
 
     private void requirePatientExists(UUID patientId) {
@@ -276,7 +319,11 @@ public class RecordingServiceImpl implements RecordingService {
             return null;
         }
         try {
-            Map<String, Object> m = objectMapper.readValue(json, new TypeReference<>() {});
+            JsonNode root = objectMapper.readTree(json);
+            if (root == null || root.isNull() || root.isMissingNode() || !root.isObject()) {
+                return null;
+            }
+            Map<String, Object> m = objectMapper.convertValue(root, new TypeReference<>() {});
             return (m == null || m.isEmpty()) ? null : Map.copyOf(m);
         } catch (Exception e) {
             log.warn("No se pudo parsear charts_json (longitud={}): {}", json.length(), e.getMessage());
@@ -303,6 +350,11 @@ public class RecordingServiceImpl implements RecordingService {
         if (g.startsWith("M")) return "M";
         if (g.startsWith("F")) return "F";
         return gender.length() > 1 ? gender.substring(0, 1) : gender;
+    }
+
+    private static boolean isAllowedAudioType(String contentType) {
+        String base = contentType.toLowerCase().split(";")[0].trim();
+        return ALLOWED_MIME_TYPES.contains(base);
     }
 
     private static String extensionFromFilename(String original) {

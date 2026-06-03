@@ -16,8 +16,9 @@ type Step = 'mode' | 'question' | 'record'
 export function ConversationGuide({ questions, onComplete, disabled = false }: ConversationGuideProps) {
   const [presentationMode, setPresentationMode] = useState<PresentationMode | null>(null)
   const [step, setStep] = useState<Step>('mode')
-  const [questionIndex] = useState(0)
   const [error, setError] = useState<string | null>(null)
+
+  const questionIndex = 0
 
   const currentQuestion = questions[questionIndex]
 

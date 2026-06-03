@@ -3,12 +3,13 @@ export interface AuditLogEntry {
   timestamp: string
   userId: string
   userName: string
+  userEmail?: string
+  userRole?: string
   action: string
   resource?: string
   resourceId?: string
-  patientId?: string
+  result: string
   ip?: string
-  result: 'success' | 'error' | 'denied'
   details?: string
 }
 
@@ -17,6 +18,6 @@ export interface AuditLogFilters {
   toDate?: string
   userId?: string
   action?: string
-  patientId?: string
   result?: string
+  resource?: string
 }

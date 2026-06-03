@@ -4,9 +4,13 @@ import com.parkinson.backend.context.RequestContext;
 import com.parkinson.backend.model.dto.request.CreatePatientDto;
 import com.parkinson.backend.model.dto.response.PatientDto;
 import com.parkinson.backend.model.dto.response.PatientListItemDto;
+import com.parkinson.backend.model.dto.response.PatientWithRecordingsDto;
+import com.parkinson.backend.model.dto.response.RecordingSummaryDto;
+import com.parkinson.backend.exception.BadRequestException;
 import com.parkinson.backend.exception.ResourceNotFoundException;
 import com.parkinson.backend.model.entity.Patient;
 import com.parkinson.backend.repository.PatientRepository;
+import com.parkinson.backend.repository.RecordingRepository;
 import com.parkinson.backend.repository.UserRepository;
 import com.parkinson.backend.service.AuditLogService;
 import com.parkinson.backend.service.PatientService;
@@ -23,6 +27,7 @@ import java.util.UUID;
 public class PatientServiceImpl implements PatientService {
 
     private final PatientRepository patientRepository;
+    private final RecordingRepository recordingRepository;
     private final AuditLogService auditLogService;
     private final UserRepository userRepository;
     private final RequestContext requestContext;
@@ -44,8 +49,43 @@ public class PatientServiceImpl implements PatientService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<PatientDto> findByDni(String dni) {
+        return patientRepository.findByDni(dni).map(this::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientListItemDto> findPatientsWithStoredRecordings() {
+        return patientRepository.findPatientsWithStoredRecordings();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientWithRecordingsDto> findPatientsWithStoredRecordingsFull() {
+        List<PatientListItemDto> patients = patientRepository.findPatientsWithStoredRecordings();
+        return patients.stream().map(p -> {
+            List<RecordingSummaryDto> recordings = recordingRepository.findSummaryByPatientId(p.getId());
+            return PatientWithRecordingsDto.builder()
+                    .id(p.getId())
+                    .fullName(p.getFullName())
+                    .age(p.getAge())
+                    .gender(p.getGender())
+                    .dni(p.getDni())
+                    .storedRecordings(recordings)
+                    .build();
+        }).toList();
+    }
+
+    @Override
     @Transactional
     public PatientDto create(CreatePatientDto dto) {
+        patientRepository.findByDni(dto.getDni()).ifPresent(existing -> {
+            throw new BadRequestException(
+                "Ya existe un paciente con DNI " + dto.getDni() + " (" + existing.getFullName() + "). "
+                + "Use el paciente existente o corrija el DNI."
+            );
+        });
         Patient patient = patientRepository.save(toEntity(dto));
         PatientDto result = toDto(patient);
         String email = requestContext.getCurrentUserEmail();

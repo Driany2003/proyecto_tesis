@@ -3,7 +3,6 @@ package com.parkinson.backend.model.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.Instant;
 import java.util.UUID;
 
 @Entity
@@ -13,7 +12,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RiskThreshold {
+public class RiskThreshold extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -36,13 +35,4 @@ public class RiskThreshold {
 
     @Column(name = "critical_threshold")
     private Double criticalThreshold;
-
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
-
-    @PrePersist
-    @PreUpdate
-    void prePersist() {
-        updatedAt = Instant.now();
-    }
 }
