@@ -10,11 +10,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -22,26 +22,21 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/patients/{patientId}/recordings")
 @RequiredArgsConstructor
+@PreAuthorize("isAuthenticated()")
 public class RecordingController {
 
     private final RecordingService recordingService;
 
     @GetMapping
-    public ResponseEntity<List<RecordingSummaryDto>> list(
-            @PathVariable UUID patientId,
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
-        requireAuth(userDetails);
+    public ResponseEntity<List<RecordingSummaryDto>> list(@PathVariable UUID patientId) {
         return ResponseEntity.ok(recordingService.listByPatient(patientId));
     }
 
     @GetMapping("/{recordingId}")
     public ResponseEntity<RecordingListItemDto> getOne(
             @PathVariable UUID patientId,
-            @PathVariable UUID recordingId,
-            @AuthenticationPrincipal UserDetails userDetails
+            @PathVariable UUID recordingId
     ) {
-        requireAuth(userDetails);
         return ResponseEntity.ok(recordingService.getByIdForPatient(patientId, recordingId));
     }
 
@@ -53,7 +48,7 @@ public class RecordingController {
             @RequestParam(defaultValue = "true") boolean triggerPipeline,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        String email = requireAuth(userDetails).getUsername();
+        String email = userDetails.getUsername();
         RecordingUploadResponse body = recordingService.createRecording(patientId, file, durationSeconds, email, triggerPipeline);
         return ResponseEntity.status(HttpStatus.CREATED).body(body);
     }
@@ -61,10 +56,8 @@ public class RecordingController {
     @GetMapping("/{recordingId}/audio-url")
     public ResponseEntity<RecordingAudioUrlDto> getAudioUrl(
             @PathVariable UUID patientId,
-            @PathVariable UUID recordingId,
-            @AuthenticationPrincipal UserDetails userDetails
+            @PathVariable UUID recordingId
     ) {
-        requireAuth(userDetails);
         return ResponseEntity.ok(recordingService.getAudioUrl(patientId, recordingId));
     }
 
@@ -72,17 +65,8 @@ public class RecordingController {
     public ResponseEntity<RecordingListItemDto> patchNotes(
             @PathVariable UUID patientId,
             @PathVariable UUID recordingId,
-            @RequestBody RecordingNotesPatchRequest body,
-            @AuthenticationPrincipal UserDetails userDetails
+            @RequestBody RecordingNotesPatchRequest body
     ) {
-        requireAuth(userDetails);
         return ResponseEntity.ok(recordingService.patchNotes(patientId, recordingId, body));
-    }
-
-    private static UserDetails requireAuth(UserDetails userDetails) {
-        if (userDetails == null) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED);
-        }
-        return userDetails;
     }
 }

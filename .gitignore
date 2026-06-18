@@ -32,3 +32,23 @@ backend/target/
 *.sln
 *.sw?
 ml-service/.cache/
+
+# Documentos generados (PDFs, DOCXs)
+*.pdf
+*.docx
+*.doc
+
+# Screenshots y evidencias
+screenshots/
+screenshots_*/
+Frontend/screenshots_*/
+
+# Scripts de utilidad one-shot
+*.mjs
+
+# Python virtual environments
+.venv/
+__pycache__/
+
+# Entregas parciales
+entrega_parcial/

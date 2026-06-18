@@ -59,7 +59,8 @@ public class DevDataLoader {
                 }
             }
 
-            if (userRepository.findByEmail("creo200307@gmail.com").isEmpty()) {
+            if (userRepository.findByEmail("creo200307@gmail.com").isEmpty()
+                    && authorityRepository.findByUsernameIgnoreCase("admin").isEmpty()) {
                 User admin = User.builder()
                         .name("Administrador")
                         .email("creo200307@gmail.com")

@@ -1,5 +1,5 @@
 import type { RecordingSummary } from '@/api/recordings'
-import { formatSessionDate, parkinsonRiskPresentation, statusBadgeClass, statusLabel } from './utils'
+import { formatSessionDate, parkinsonRiskPresentation, statusBadgeClass, statusLabel, translateRiskBand } from './utils'
 
 type Props = {
   r: RecordingSummary
@@ -56,7 +56,7 @@ export function SessionListRow({ r, selected, isLatest, onSelect }: Props) {
                 {(r.pParkinson * 100).toFixed(1)}%
               </span>
               {r.riskBand ? (
-                <span className="font-medium text-slate-600 dark:text-slate-300"> ({r.riskBand})</span>
+                <span className="font-medium text-slate-600 dark:text-slate-300"> ({translateRiskBand(r.riskBand)})</span>
               ) : null}
             </>
           )}

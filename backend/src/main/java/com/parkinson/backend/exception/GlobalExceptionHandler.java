@@ -30,4 +30,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleStorage(StorageException e) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error", e.getMessage()));
     }
+
+    @ExceptionHandler(BackupException.class)
+    public ResponseEntity<Map<String, String>> handleBackup(BackupException e) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", e.getMessage()));
+    }
 }

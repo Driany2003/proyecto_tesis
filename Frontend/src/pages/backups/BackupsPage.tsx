@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getBackups, restoreBackup } from '@/api/backups'
+import { getBackups, createBackup, restoreBackup } from '@/api/backups'
 import { PageHeader, SectionCard, SectionCardSimple, SectionDivider } from '@/layout/PageSection'
 import { IconDatabase } from '@/components/icons/SidebarIcons'
 
@@ -20,13 +20,21 @@ export function BackupsPage() {
     queryFn: getBackups,
   })
 
+  const createBackupMutation = useMutation({
+    mutationFn: createBackup,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['backups'] })
+      setSuccessMessage('Backup creado exitosamente.')
+      setTimeout(() => setSuccessMessage(null), 4000)
+    },
+  })
+
   const restoreMutation = useMutation({
     mutationFn: restoreBackup,
-    onSuccess: (_, backupId) => {
+    onSuccess: () => {
       setRestoringId(null)
       queryClient.invalidateQueries({ queryKey: ['backups'] })
-      const dateStr = new Date(backupId).toLocaleDateString('es-PE')
-      setSuccessMessage(`Restauración solicitada (${dateStr}).`)
+      setSuccessMessage('Restauración completada exitosamente.')
       setTimeout(() => setSuccessMessage(null), 4000)
     },
     onError: () => setRestoringId(null),
@@ -59,10 +67,20 @@ export function BackupsPage() {
         icon={<IconDatabase className="h-5 w-5" />}
         className="mb-6 border-amber-200/80 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-950/20"
       >
-        <p className="text-sm text-amber-800 dark:text-amber-100">
-          Los respaldos automáticos se ejecutan en el backend (por defecto 2:00 AM). Aquí puede ver el
-          historial y solicitar una restauración.
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-amber-800 dark:text-amber-100">
+            Los respaldos automáticos se ejecutan en el backend (por defecto 2:00 AM). Aquí puede ver el
+            historial, crear un backup manual o solicitar una restauración.
+          </p>
+          <button
+            type="button"
+            onClick={() => createBackupMutation.mutate()}
+            disabled={createBackupMutation.isPending}
+            className="btn-primary rounded-xl px-4 py-2 text-sm font-medium shadow-sm disabled:opacity-50"
+          >
+            {createBackupMutation.isPending ? 'Creando...' : 'Crear Backup'}
+          </button>
+        </div>
       </SectionCard>
 
       <SectionDivider label="Historial de respaldos" />

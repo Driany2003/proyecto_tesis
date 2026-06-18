@@ -6,6 +6,12 @@ import java.util.List;
 import java.util.UUID;
 
 public interface BackupRecordService {
+
+    BackupRecordDto createBackup(String triggeredBy);
+
     List<BackupRecordDto> findAll();
-    void restore(UUID backupId);
+
+    BackupRecordDto restore(UUID backupId, String triggeredBy);
+
+    void deleteOldBackups();
 }

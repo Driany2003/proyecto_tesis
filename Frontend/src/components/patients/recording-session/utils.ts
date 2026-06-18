@@ -20,15 +20,23 @@ export function statusLabel(status: string): string {
   return status
 }
 
-type RiskLevel = 'bajo' | 'moderado' | 'alto'
+export function translateRiskBand(band: string | null): string {
+  if (!band) return ''
+  const b = band.toLowerCase()
+  if (b.includes('high') || b.includes('alto')) return 'Alto'
+  if (b.includes('low') || b.includes('bajo') || b.includes('minimal')) return 'Bajo'
+  if (b.includes('moderate') || b.includes('moderado')) return 'Moderado'
+  return band
+}
 
-type RiskStyles = {
+export type RiskLevel = 'bajo' | 'moderado' | 'alto'
+
+export type RiskStyles = {
   card: string
-  barBg: string
-  barFill: string
   badge: string
   number: string
-  hint: string
+  gaugeStroke: string
+  arcId: string
 }
 
 export function parkinsonRiskPresentation(p: number, riskBand: string | null) {
@@ -42,33 +50,29 @@ export function parkinsonRiskPresentation(p: number, riskBand: string | null) {
   const styles: RiskStyles =
     level === 'alto'
       ? {
-          card: 'border-red-200/90 bg-gradient-to-br from-red-50 via-white to-rose-50/80 dark:border-red-900/50 dark:from-red-950/40 dark:via-slate-900 dark:to-rose-950/30',
-          barBg: 'bg-red-100/80 dark:bg-red-950/50',
-          barFill: 'bg-gradient-to-r from-red-500 to-rose-600',
-          badge: 'bg-red-100 text-red-900 ring-red-200 dark:bg-red-950/80 dark:text-red-100 dark:ring-red-800',
-          number: 'text-red-700 dark:text-red-200',
-          hint: 'text-red-800/90 dark:text-red-200/90',
+          card: '',
+          badge: 'bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800/60',
+          number: 'text-slate-900 dark:text-slate-100',
+          gaugeStroke: '#ef4444',
+          arcId: 'arc-high',
         }
       : level === 'bajo'
         ? {
-            card: 'border-emerald-200/90 bg-gradient-to-br from-emerald-50 via-white to-teal-50/80 dark:border-emerald-900/40 dark:from-emerald-950/35 dark:via-slate-900 dark:to-teal-950/25',
-            barBg: 'bg-emerald-100/80 dark:bg-emerald-950/50',
-            barFill: 'bg-gradient-to-r from-emerald-500 to-teal-600',
-            badge: 'bg-emerald-100 text-emerald-900 ring-emerald-200 dark:bg-emerald-950/80 dark:text-emerald-100 dark:ring-emerald-800',
-            number: 'text-emerald-800 dark:text-emerald-200',
-            hint: 'text-emerald-900/90 dark:text-emerald-100/90',
+            card: '',
+            badge: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-800/60',
+            number: 'text-slate-900 dark:text-slate-100',
+            gaugeStroke: '#10b981',
+            arcId: 'arc-low',
           }
         : {
-            card: 'border-amber-200/90 bg-gradient-to-br from-amber-50 via-white to-orange-50/70 dark:border-amber-900/45 dark:from-amber-950/35 dark:via-slate-900 dark:to-orange-950/25',
-            barBg: 'bg-amber-100/80 dark:bg-amber-950/50',
-            barFill: 'bg-gradient-to-r from-amber-500 to-orange-500',
-            badge: 'bg-amber-100 text-amber-950 ring-amber-200 dark:bg-amber-950/80 dark:text-amber-100 dark:ring-amber-800',
-            number: 'text-amber-900 dark:text-amber-100',
-            hint: 'text-amber-950/90 dark:text-amber-100/90',
+            card: '',
+            badge: 'bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-800/60',
+            number: 'text-slate-900 dark:text-slate-100',
+            gaugeStroke: '#0ea5e9',
+            arcId: 'arc-moderate',
           }
 
-  const levelLabel =
-    level === 'alto' ? 'Riesgo estimado alto' : level === 'bajo' ? 'Riesgo estimado bajo' : 'Riesgo estimado moderado'
+  const levelLabel = level === 'alto' ? 'Alto' : level === 'bajo' ? 'Bajo' : 'Moderado'
 
   return { pct, level, levelLabel, styles }
 }

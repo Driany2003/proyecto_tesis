@@ -8,9 +8,14 @@ import com.parkinson.backend.model.entity.User;
 import com.parkinson.backend.repository.AuthorityRepository;
 import com.parkinson.backend.repository.UserRepository;
 import com.parkinson.backend.security.JwtService;
+import com.parkinson.backend.security.SessionTracker;
 import com.parkinson.backend.service.AuditLogService;
 import com.parkinson.backend.service.AuthService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,12 +28,16 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
+    private static final String COOKIE_NAME = "p_token";
+    private static final long COOKIE_MAX_AGE_SECONDS = 7200;
+
     private final UserRepository userRepository;
     private final AuthorityRepository authorityRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuditLogService auditLogService;
     private final RequestContext requestContext;
+    private final SessionTracker sessionTracker;
 
     @Override
     @Transactional
@@ -73,6 +82,41 @@ public class AuthServiceImpl implements AuthService {
         return userRepository.findByEmailWithRole(email)
                 .flatMap(user -> authorityRepository.findByUser_Id(user.getId())
                         .map(auth -> toDto(user, auth.getUsername())));
+    }
+
+    @Override
+    public void logout(String token) {
+        if (token != null) {
+            sessionTracker.removeSession(token);
+        }
+    }
+
+    @Override
+    public String extractTokenFromRequest(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if (COOKIE_NAME.equals(cookie.getName()) && cookie.getValue() != null) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        String bearer = request.getHeader("Authorization");
+        if (bearer != null && bearer.startsWith("Bearer ")) {
+            return bearer.substring(7);
+        }
+        return null;
+    }
+
+    @Override
+    public ResponseCookie buildAuthCookie(String token) {
+        return ResponseCookie.from(COOKIE_NAME, token)
+                .httpOnly(true)
+                .secure(false)
+                .path("/")
+                .maxAge(COOKIE_MAX_AGE_SECONDS)
+                .sameSite("Lax")
+                .build();
     }
 
     private static UserDto toDto(User u, String username) {

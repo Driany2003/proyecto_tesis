@@ -323,3 +323,12 @@ textarea.input-base {
 .animate-slide-in-right {
   animation: slide-in-right 0.25s ease-out;
 }
+
+/* Gauge circular: animación de llenado */
+@keyframes gauge-fill {
+  from { stroke-dashoffset: 220; }
+}
+
+.animate-gauge {
+  animation: gauge-fill 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

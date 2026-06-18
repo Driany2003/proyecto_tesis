@@ -23,7 +23,7 @@ public class AuditLog {
     private Instant timestamp;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false, foreignKey = @ForeignKey(name = "fk_audit_log_user"))
+    @JoinColumn(name = "user_id", nullable = true, foreignKey = @ForeignKey(name = "fk_audit_log_user"))
     private User user;
 
     @Column(nullable = false, length = 100)
