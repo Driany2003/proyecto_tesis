@@ -1,0 +1,27 @@
+@startuml
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam defaultFontSize 14
+title CU-21: Auditoría del Sistema
+
+left to right direction
+
+actor "Auditor" as Auditor
+actor "Administrador" as Admin
+
+rectangle "Módulo de Auditoría" {
+  usecase "CU-21: Consultar Logs\nde Auditoría" as CU21
+  usecase "Filtrar por Fecha" as F1
+  usecase "Filtrar por Usuario" as F2
+  usecase "Filtrar por Acción" as F3
+  usecase "Exportar a CSV" as Export
+}
+
+Auditor --> CU21
+Admin --> CU21
+
+CU21 ..> F1 : <<include>>
+CU21 ..> F2 : <<include>>
+CU21 ..> F3 : <<include>>
+CU21 ..> Export : <<extend>>
+@enduml

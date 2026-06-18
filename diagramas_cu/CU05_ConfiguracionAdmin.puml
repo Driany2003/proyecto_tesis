@@ -1,0 +1,18 @@
+@startuml
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam defaultFontSize 14
+title CU-19 a CU-20: Configuración del Sistema
+
+left to right direction
+
+actor "Administrador" as Admin
+
+rectangle "Módulo de Configuración" {
+  usecase "CU-19: Configurar Umbrales\nde Riesgo" as CU19
+  usecase "CU-20: Gestionar Respaldos\nde Datos" as CU20
+}
+
+Admin --> CU19
+Admin --> CU20
+@enduml

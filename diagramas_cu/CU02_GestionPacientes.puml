@@ -1,0 +1,22 @@
+@startuml
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam defaultFontSize 14
+title CU-04 a CU-06: Gestión de Pacientes
+
+left to right direction
+
+actor "Médico" as Medico
+
+rectangle "Módulo de Gestión de Pacientes" {
+  usecase "CU-04: Registrar Paciente" as CU04
+  usecase "CU-05: Buscar y Visualizar\nPaciente" as CU05
+  usecase "CU-06: Consultar Evolución\ndel Paciente" as CU06
+}
+
+Medico --> CU04
+Medico --> CU05
+Medico --> CU06
+
+CU05 ..> CU06 : <<include>>
+@enduml
